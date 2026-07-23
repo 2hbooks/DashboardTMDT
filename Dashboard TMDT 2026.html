@@ -215,12 +215,12 @@
     <div class="chart-wrap"><canvas id="pieTotal"></canvas></div>
     <div class="legend-list" id="legendTotal"></div>
   </div>
-  <div class="card">
+  <div class="card" id="cardShopee">
     <div class="card-title"><span class="dot" style="background:#ee4d2d"></span>Shopee</div>
     <div class="chart-wrap"><canvas id="pieShopee"></canvas></div>
     <div class="legend-list" id="legendShopee"></div>
   </div>
-  <div class="card">
+  <div class="card" id="cardTiktok">
     <div class="card-title"><span class="dot" style="background:#333"></span>TikTok</div>
     <div class="chart-wrap"><canvas id="pieTiktok"></canvas></div>
     <div class="legend-list" id="legendTiktok"></div>
@@ -267,10 +267,10 @@
 </div>
 
 <!-- Section 2: GV/DT ratio -->
-<div class="section-title">💰 Tỷ lệ Giá vốn / Doanh thu theo nhóm sản phẩm</div>
+<div class="section-title">💰 Tỷ lệ Giá vốn / Doanh thu theo Nhà cung cấp</div>
 <div class="charts-grid">
   <div class="card" style="grid-column:1/-1">
-    <div class="card-title">GV/DT theo Ngành Hàng – <span id="gvShopLabel"></span></div>
+    <div class="card-title">GV/DT Top 10 NCC theo Doanh thu – <span id="gvShopLabel"></span></div>
     <div class="chart-wrap-lg"><canvas id="barGvDt"></canvas></div>
   </div>
 </div>
@@ -282,7 +282,7 @@
     <div class="card-title">Bảng DT & GV/DT theo shop</div>
     <table class="shop-table" id="shopTable">
       <thead><tr>
-        <th>Shop</th><th>Kênh</th><th>Doanh thu</th><th>Giá vốn</th><th>GV/DT</th>
+        <th>Shop</th><th>Kênh</th><th>Doanh thu</th><th>Chi phí QC</th><th>ACOS</th><th>Giá vốn</th><th>GV/DT</th>
         <th class="bar-cell">Tỷ trọng DT</th>
       </tr></thead>
       <tbody id="shopTableBody"></tbody>
@@ -498,22 +498,53 @@ function buildPie(canvasId, legendId, channel) {
       </div>`;
     leg.appendChild(row);
   });
+
+  // Dòng Tổng doanh thu
+  const totRow = document.createElement('div');
+  totRow.className = 'legend-row';
+  totRow.style.cssText = 'border-top:1.5px solid var(--border);margin-top:8px;padding-top:8px;font-weight:700;';
+  totRow.innerHTML = `
+    <div class="left">
+      <span class="dot" style="background:transparent;border:none"></span>
+      <span>Tổng doanh thu</span>
+    </div>
+    <div><span class="val">${fmtVND(totalDT)}</span></div>`;
+  leg.appendChild(totRow);
+}
+
+function aggByNcc() {
+  // Aggregate PRODUCT_DATA theo NCC, tôn trọng filter tháng/kênh/shop hiện tại
+  const out = {};
+  const months = selMonth === 'all' ? D.months : [selMonth];
+  PRODUCT_DATA.forEach(p => {
+    if (selMonth   !== 'all' && !months.includes(p.mo)) return;
+    if (selChannel !== 'all' && p.ch !== selChannel)    return;
+    if (selShop    !== 'all' && p.sh !== selShop)       return;
+    const ncc = p.nc || 'Chưa có NCC';
+    if (!out[ncc]) out[ncc] = {dt:0, gv:0};
+    out[ncc].dt += p.dt;
+    out[ncc].gv += p.gv;
+  });
+  return out;
 }
 
 function buildBarGvDt() {
   destroyChart('barGvDt');
-  const raw = aggByNganh(selChannel === 'all' ? 'all' : selChannel, selShop);
+  const raw = aggByNcc();
   document.getElementById('gvShopLabel').textContent =
-    selShop !== 'all' ? selShop :
+    selShop    !== 'all' ? selShop :
     selChannel === 'shopee' ? 'Shopee' :
     selChannel === 'tiktok' ? 'TikTok' : 'Tất cả';
 
+  // Top 10 NCC theo DT
   const entries = Object.entries(raw)
-    .filter(([k,v]) => k !== 'Chưa phân loại' && v.dt > 0)
-    .sort((a,b) => b[1].dt - a[1].dt);
+    .filter(([,v]) => v.dt > 0)
+    .sort((a,b) => b[1].dt - a[1].dt)
+    .slice(0, 10);
 
-  const labels = entries.map(([k])=>k);
+  const labels = entries.map(([k]) => k);
   const ratios = entries.map(([,v]) => v.dt ? +(v.gv/v.dt*100).toFixed(1) : 0);
+  const dts    = entries.map(([,v]) => v.dt);
   const colors = ratios.map(r => r < 45 ? '#10b981' : r < 60 ? '#f59e0b' : '#ef4444');
 
   const ctx = document.getElementById('barGvDt').getContext('2d');
@@ -526,22 +557,29 @@ function buildBarGvDt() {
         data: ratios,
         backgroundColor: colors,
         borderRadius: 6,
-        barThickness: 36,
+        barThickness: 40,
       }]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        datalabels: { display: false },
+        datalabels: {
+          display: true,
+          anchor: 'end', align: 'end',
+          formatter: v => v + '%',
+          color: '#374151',
+          font: { size: 11, weight: '700' },
+          offset: 2,
+        },
         tooltip: {
           callbacks: {
             label: (ctx) => {
-              const ng = entries[ctx.dataIndex];
+              const [,v] = entries[ctx.dataIndex];
               return [
                 `  GV/DT: ${ctx.raw}%`,
-                `  DT: ${fmtVND(ng[1].dt)}`,
-                `  GV: ${fmtVND(ng[1].gv)}`
+                `  DT: ${fmtVND(v.dt)}`,
+                `  GV: ${fmtVND(v.gv)}`
               ];
             }
           }
@@ -549,15 +587,19 @@ function buildBarGvDt() {
       },
       scales: {
         y: {
-          min: 0, max: 100,
-          ticks: { callback: v => v+'%' },
+          min: 0, max: 110,
+          ticks: { callback: v => v <= 100 ? v+'%' : '' },
           grid: { color: '#f3f4f6' }
         },
-        x: { grid: { display: false } }
-      },
-      annotation: {
-        annotations: {
-          line50: { type:'line', yMin:50, yMax:50, borderColor:'#9ca3af', borderWidth:1, borderDash:[4,4] }
+        x: {
+          grid: { display: false },
+          ticks: {
+            maxRotation: 30,
+            callback: function(val, i) {
+              const lbl = labels[i];
+              return lbl.length > 18 ? lbl.slice(0,18)+'…' : lbl;
+            }
+          }
         }
       }
     }
@@ -565,25 +607,37 @@ function buildBarGvDt() {
 }
 
 function buildShopTable() {
-  const shops = aggByShop();
-  const maxDT = shops.reduce((m,s)=>Math.max(m,s.dt),0);
-  const tbody = document.getElementById('shopTableBody');
+  const shops  = aggByShop();
+  const months = getMonths();
+  const maxDT  = shops.reduce((m,s)=>Math.max(m,s.dt),0);
+  const totDT  = shops.reduce((s,x)=>s+x.dt,0);
+  const tbody  = document.getElementById('shopTableBody');
   tbody.innerHTML = '';
+
   shops.forEach(({shop,ch,dt,gv}) => {
+    // Chi phí QC theo shop × tháng
+    let qc = 0;
+    months.forEach(m => { qc += D.ad_cost?.[ch]?.[shop]?.[m] || 0; });
+
     const ratio = dt ? gv/dt : 0;
+    const acos  = dt ? qc/dt : 0;
     const pctBar = maxDT ? dt/maxDT*100 : 0;
     const ratioColor = ratio < 0.45 ? '#10b981' : ratio < 0.60 ? '#f97316' : '#ef4444';
+    const acosColor  = acos  < 0.10 ? '#10b981' : acos  < 0.20 ? '#f97316' : '#ef4444';
     const barColor   = ch === 'shopee' ? '#ee4d2d' : '#333';
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td style="font-weight:600">${shop}</td>
       <td><span class="badge badge-${ch === 'shopee' ? 'shopee' : 'tiktok'}">${ch === 'shopee' ? 'Shopee' : 'TikTok'}</span></td>
       <td style="font-weight:600">${fmtVND(dt)}</td>
+      <td>${qc > 0 ? fmtVND(qc) : '—'}</td>
+      <td style="font-weight:700;color:${acosColor}">${qc > 0 && dt > 0 ? (acos*100).toFixed(1)+'%' : '—'}</td>
       <td>${fmtVND(gv)}</td>
       <td style="font-weight:700;color:${ratioColor}">${pct(gv,dt)}</td>
       <td class="bar-cell">
         <div class="bar-bg"><div class="bar-fill" style="width:${pctBar.toFixed(1)}%;background:${barColor}"></div></div>
-        <div style="font-size:11px;color:#9ca3af;margin-top:2px">${pct(dt, shops.reduce((s,x)=>s+x.dt,0))}</div>
+        <div style="font-size:11px;color:#9ca3af;margin-top:2px">${pct(dt,totDT)}</div>
       </td>`;
     tbody.appendChild(tr);
   });
@@ -633,6 +687,27 @@ function buildTrend() {
   });
 }
 
+function aggAdCost() {
+  // Tổng chi phí QC theo filter hiện tại
+  const months = getMonths();
+  let total = 0;
+  if (selChannel !== 'tiktok') {
+    D.shopee_shops.forEach(shop => {
+      if (selShop !== 'all' && shop !== selShop) return;
+      months.forEach(m => { total += D.ad_cost?.shopee?.[shop]?.[m] || 0; });
+    });
+  }
+  if (selChannel !== 'shopee') {
+    // TikTok QC là 1 số tổng → chỉ tính khi không lọc theo shop Shopee
+    if (selShop === 'all' || D.tiktok_shops.includes(selShop)) {
+      D.tiktok_shops.forEach(shop => {
+        months.forEach(m => { total += D.ad_cost?.tiktok?.[shop]?.[m] || 0; });
+      });
+    }
+  }
+  return total;
+}
+
 function buildKPI() {
   const months = getMonths();
   let shDT=0, shGV=0, ttDT=0, ttGV=0;
@@ -657,13 +732,24 @@ function buildKPI() {
 
   const totDT = shDT + ttDT;
   const totGV = shGV + ttGV;
+  const totQC = aggAdCost();
+  const acos  = totDT ? totQC / totDT : 0;
+  const acosColor = acos < 0.10 ? '#059669' : acos < 0.20 ? '#d97706' : '#dc2626';
 
-  const kpis = [
-    { label:'Tổng Doanh thu', value:fmtVND(totDT), sub:'GV/DT: '+pct(totGV,totDT), cls:'total' },
-    { label:'Shopee', value:fmtVND(shDT), sub:'GV/DT: '+pct(shGV,shDT)+' · '+pct(shDT,totDT||1)+' tổng', cls:'shopee' },
-    { label:'TikTok', value:fmtVND(ttDT), sub:'GV/DT: '+pct(ttGV,ttDT)+' · '+pct(ttDT,totDT||1)+' tổng', cls:'tiktok' },
-    { label:'Tổng Giá vốn', value:fmtVND(totGV), sub:'GV/DT: '+pct(totGV,totDT), cls:'total' },
-  ];
+  const kpis = [];
+  // Tổng DT chỉ hiện khi xem tất cả kênh (tránh trùng với Shopee/TikTok)
+  if (selChannel === 'all')
+    kpis.push({ label:'Tổng Doanh thu', value:fmtVND(totDT), sub:'GV/DT: '+pct(totGV,totDT), cls:'total' });
+  // Shopee/TikTok: chỉ hiện khi có doanh thu (> 0)
+  if (shDT > 0)
+    kpis.push({ label:'Shopee', value:fmtVND(shDT),
+      sub:'GV/DT: '+pct(shGV,shDT)+(selChannel==='all'?' · '+pct(shDT,totDT||1)+' tổng':''), cls:'shopee' });
+  if (ttDT > 0)
+    kpis.push({ label:'TikTok', value:fmtVND(ttDT),
+      sub:'GV/DT: '+pct(ttGV,ttDT)+(selChannel==='all'?' · '+pct(ttDT,totDT||1)+' tổng':''), cls:'tiktok' });
+  kpis.push({ label:'Tổng Giá vốn', value:fmtVND(totGV), sub:'GV/DT: '+pct(totGV,totDT), cls:'total' });
+  kpis.push({ label:'Chi phí quảng cáo', value:fmtVND(totQC),
+    sub:'ACOS: <span style="font-weight:700;color:'+acosColor+'">'+(totDT?(acos*100).toFixed(1)+'%':'—')+'</span>', cls:'total' });
 
   document.getElementById('kpiRow').innerHTML = kpis.map(k=>`
     <div class="kpi ${k.cls}">
@@ -845,8 +931,13 @@ document.getElementById('showMore').addEventListener('click', () => {
 function renderAll() {
   buildKPI();
   buildPie('pieTotal',  'legendTotal',  'all');
-  buildPie('pieShopee', 'legendShopee', 'shopee');
-  buildPie('pieTiktok', 'legendTiktok', 'tiktok');
+  // Ẩn/hiện card theo kênh đang chọn
+  const showShopee = selChannel !== 'tiktok';
+  const showTiktok = selChannel !== 'shopee';
+  document.getElementById('cardShopee').style.display = showShopee ? '' : 'none';
+  document.getElementById('cardTiktok').style.display = showTiktok ? '' : 'none';
+  if (showShopee) buildPie('pieShopee', 'legendShopee', 'shopee');
+  if (showTiktok) buildPie('pieTiktok', 'legendTiktok', 'tiktok');
   prodLimit = 30;
   buildProductTable();
   buildBarGvDt();
