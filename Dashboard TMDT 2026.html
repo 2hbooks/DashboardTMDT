@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard TMDT 2026 – 2H Books</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+<style>
+  :root {
+    --bg: #f0f2f5;
+    --card: #ffffff;
+    --primary: #1a56db;
+    --primary-light: #e8f0fe;
+    --text: #111827;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --shopee: #ee4d2d;
+    --tiktok: #010101;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+
+  /* ── Header ── */
+  .header { background: linear-gradient(135deg,#1a1a2e 0%,#16213e 60%,#0f3460 100%); color:#fff; padding:20px 28px; display:flex; align-items:center; gap:16px; }
+  .header h1 { font-size:22px; font-weight:700; }
+  .header .sub { font-size:12px; opacity:.7; margin-top:2px; }
+  .badge { padding:4px 10px; border-radius:20px; font-size:11px; font-weight:600; }
+  .badge-shopee { background:var(--shopee); color:#fff; }
+  .badge-tiktok { background:#fff; color:#000; }
+
+  /* ── Filters ── */
+  .filters { background:#fff; border-bottom:1px solid var(--border); padding:12px 28px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; position:sticky; top:0; z-index:100; box-shadow:0 1px 4px rgba(0,0,0,.06); }
+  .filter-group { display:flex; align-items:center; gap:8px; }
+  .filter-group label { font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.05em; }
+  select { border:1px solid var(--border); border-radius:8px; padding:6px 12px; font-size:13px; background:#f9fafb; cursor:pointer; color:var(--text); }
+  select:focus { outline:2px solid var(--primary); border-color:transparent; }
+  .divider { width:1px; height:28px; background:var(--border); }
+
+  /* ── KPI Cards ── */
+  .kpi-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:16px; padding:20px 28px 0; }
+  .kpi { background:var(--card); border-radius:var(--radius); padding:18px 20px; border:1px solid var(--border); }
+  .kpi .label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px; }
+  .kpi .value { font-size:24px; font-weight:700; }
+  .kpi .sub { font-size:12px; color:var(--muted); margin-top:4px; }
+  .kpi.shopee { border-top:3px solid var(--shopee); }
+  .kpi.tiktok { border-top:3px solid #888; }
+  .kpi.total  { border-top:3px solid var(--primary); }
+
+  /* ── Grid ── */
+  .section-title { font-size:13px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; padding:24px 28px 12px; }
+  .charts-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap:16px; padding:0 28px 24px; }
+  .card { background:var(--card); border-radius:var(--radius); border:1px solid var(--border); padding:20px; }
+  .card-title { font-size:14px; font-weight:600; margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+  .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+  .chart-wrap { position:relative; height:300px; }
+  .chart-wrap-lg { position:relative; height:340px; }
+
+  /* ── Legend table ── */
+  .legend-list { margin-top:14px; display:flex; flex-direction:column; gap:5px; }
+  .legend-row { display:flex; align-items:center; justify-content:space-between; font-size:12px; }
+  .legend-row .left { display:flex; align-items:center; gap:7px; }
+  .legend-row .pct { font-weight:700; color:var(--text); }
+  .legend-row .val { color:var(--muted); }
+
+  /* ── Shop table ── */
+  .shop-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .shop-table th { text-align:left; padding:8px 10px; color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.05em; border-bottom:2px solid var(--border); }
+  .shop-table td { padding:9px 10px; border-bottom:1px solid var(--border); }
+  .shop-table tr:last-child td { border-bottom:none; }
+  .shop-table .bar-cell { width:120px; }
+  .bar-bg { background:#f3f4f6; border-radius:4px; height:7px; overflow:hidden; }
+  .bar-fill { height:100%; border-radius:4px; transition:width .4s; }
+
+  /* ── GV/DT table ── */
+  .ratio-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:4px; }
+  .ratio-item { background:#f9fafb; border-radius:8px; padding:10px; }
+  .ratio-item .name { font-size:11px; color:var(--muted); margin-bottom:4px; }
+  .ratio-item .ratio { font-size:18px; font-weight:700; }
+  .ratio-item .detail { font-size:11px; color:var(--muted); }
+  .ratio-good { color:#059669; }
+  .ratio-mid  { color:#d97706; }
+  .ratio-high { color:#dc2626; }
+
+  /* ── Product table ── */
+  .prod-toolbar  { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin-bottom:16px; }
+  .prod-count    { margin-left:auto; font-size:12px; color:var(--muted); }
+  .prod-search   { border:1px solid var(--border); border-radius:8px; padding:6px 12px; font-size:13px; background:#f9fafb; color:var(--text); min-width:200px; }
+  .prod-search:focus { outline:2px solid var(--primary); border-color:transparent; }
+  /* NCC filter dropdown */
+  .ncc-wrap      { position:relative; }
+  .ncc-input     { border:1px solid var(--border); border-radius:8px; padding:6px 12px; font-size:13px; background:#f9fafb; color:var(--text); width:180px; cursor:pointer; }
+  .ncc-input:focus { outline:2px solid var(--primary); border-color:transparent; background:#fff; }
+  .ncc-list      { position:absolute; top:calc(100% + 4px); left:0; min-width:220px; max-height:260px; overflow-y:auto; background:#fff; border:1px solid var(--border); border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,.12); z-index:200; display:none; }
+  .ncc-item      { padding:8px 14px; font-size:13px; cursor:pointer; white-space:nowrap; }
+  .ncc-item:hover{ background:#eff6ff; color:var(--primary); }
+  .ncc-item.sel  { background:#dbeafe; color:var(--primary); font-weight:600; }
+  .ncc-badge     { display:inline-block; padding:2px 7px; border-radius:999px; font-size:10px; background:#e0e7ff; color:#4338ca; font-weight:600; margin-top:2px; }
+  /* Scrollable table wrapper with sticky header */
+  .prod-table-wrap { max-height:540px; overflow-y:auto; border-radius:0 0 12px 12px; }
+  .prod-table    { width:100%; border-collapse:collapse; font-size:13px; }
+  .prod-table thead th { position:sticky; top:0; z-index:10; background:#fff; text-align:left; padding:8px 10px; color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.05em; border-bottom:2px solid var(--border); white-space:nowrap; box-shadow:0 1px 0 var(--border); }
+  .prod-table td { padding:9px 10px; border-bottom:1px solid var(--border); vertical-align:middle; }
+  .prod-table tr:last-child td { border-bottom:none; }
+  .prod-table tr:hover td { background:#f9fafb; }
+  .prod-table tfoot td   { padding:10px 10px; font-weight:700; background:#eff6ff; border-top:2px solid var(--primary); font-size:13px; position:sticky; bottom:0; z-index:5; }
+  .rank-badge   { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; font-size:11px; font-weight:700; }
+  .rank-1 { background:#fbbf24; color:#fff; }
+  .rank-2 { background:#9ca3af; color:#fff; }
+  .rank-3 { background:#cd7c2f; color:#fff; }
+  .rank-n { background:#f3f4f6; color:var(--muted); }
+  .tag    { display:inline-block; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:600; background:#eff6ff; color:#1d4ed8; }
+  .prod-name  { font-weight:600; max-width:320px; }
+  .prod-sku   { font-size:11px; color:var(--muted); }
+  .th-sort    { cursor:pointer; user-select:none; }
+  .th-sort:hover { color:var(--text); }
+  .th-sort.asc::after  { content:' ↑'; }
+  .th-sort.desc::after { content:' ↓'; }
+  .show-more  { text-align:center; padding:12px; font-size:13px; color:var(--primary); cursor:pointer; font-weight:600; }
+  .show-more:hover { text-decoration:underline; }
+
+  /* ── Month badges ── */
+  .month-chips { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
+  .chip { padding:4px 12px; border-radius:20px; font-size:12px; font-weight:600; cursor:pointer; border:2px solid transparent; background:#f3f4f6; color:var(--muted); transition:.15s; }
+  .chip.active { background:var(--primary); color:#fff; }
+
+  footer { text-align:center; padding:20px; font-size:11px; color:var(--muted); }
+</style>
+</head>
+<body>
+
+<!-- ── Password Gate ─────────────────────────────────────────────────────── -->
+<div id="pwGate" style="position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 60%,#0f3460 100%);display:flex;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:16px;padding:40px 36px;width:340px;box-shadow:0 20px 60px rgba(0,0,0,.4);text-align:center;">
+    <div style="font-size:32px;margin-bottom:8px;">📊</div>
+    <div style="font-size:18px;font-weight:700;color:#111827;margin-bottom:4px;">Dashboard TMDT 2026</div>
+    <div style="font-size:13px;color:#6b7280;margin-bottom:28px;">2H Books · Nội bộ</div>
+    <input id="pwInput" type="password" placeholder="Nhập mật khẩu…"
+      style="width:100%;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;outline:none;margin-bottom:12px;transition:border .2s;"
+      onkeydown="if(event.key==='Enter')checkPw()"
+      onfocus="this.style.borderColor='#1a56db'"
+      onblur="this.style.borderColor='#e5e7eb'" />
+    <div id="pwErr" style="font-size:12px;color:#dc2626;margin-bottom:10px;min-height:16px;"></div>
+    <button onclick="checkPw()"
+      style="width:100%;padding:10px;background:#1a56db;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">
+      Đăng nhập
+    </button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const PW = '110d';
+  if(sessionStorage.getItem('auth2h')==='ok'){
+    document.getElementById('pwGate').style.display='none';
+  }
+  window.checkPw = function(){
+    const v = document.getElementById('pwInput').value;
+    if(v === PW){
+      sessionStorage.setItem('auth2h','ok');
+      document.getElementById('pwGate').style.display='none';
+    } else {
+      document.getElementById('pwErr').textContent='Mật khẩu không đúng, thử lại.';
+      document.getElementById('pwInput').value='';
+      document.getElementById('pwInput').focus();
+    }
+  };
+})();
+</script>
+
+<div class="header">
+  <div>
+    <h1>📊 Dashboard Sàn TMDT 2026</h1>
+    <div class="sub">2H Books – Dữ liệu T1–T5 2026</div>
+  </div>
+  <div style="margin-left:auto;display:flex;gap:8px;">
+    <span class="badge badge-shopee">Shopee</span>
+    <span class="badge badge-tiktok">TikTok</span>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="filters">
+  <div class="filter-group">
+    <label>Tháng</label>
+    <select id="selMonth">
+      <option value="all">T1 – T5 (Lũy kế)</option>
+      <option value="T1">Tháng 1</option>
+      <option value="T2">Tháng 2</option>
+      <option value="T3">Tháng 3</option>
+      <option value="T4">Tháng 4</option>
+      <option value="T5">Tháng 5</option>
+    </select>
+  </div>
+  <div class="divider"></div>
+  <div class="filter-group">
+    <label>Kênh</label>
+    <select id="selChannel">
+      <option value="all">Tất cả</option>
+      <option value="shopee">Shopee</option>
+      <option value="tiktok">TikTok</option>
+    </select>
+  </div>
+  <div class="divider"></div>
+  <div class="filter-group">
+    <label>Shop</label>
+    <select id="selShop">
+      <option value="all">Tất cả shop</option>
+    </select>
+  </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="kpi-row" id="kpiRow"></div>
+
+<!-- Section 1: Tỷ trọng Ngành Hàng -->
+<div class="section-title">🥧 Tỷ trọng doanh thu theo nhóm sản phẩm</div>
+<div class="charts-grid">
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:#1a56db"></span>Tổng TMDT</div>
+    <div class="chart-wrap"><canvas id="pieTotal"></canvas></div>
+    <div class="legend-list" id="legendTotal"></div>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:#ee4d2d"></span>Shopee</div>
+    <div class="chart-wrap"><canvas id="pieShopee"></canvas></div>
+    <div class="legend-list" id="legendShopee"></div>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:#333"></span>TikTok</div>
+    <div class="chart-wrap"><canvas id="pieTiktok"></canvas></div>
+    <div class="legend-list" id="legendTiktok"></div>
+  </div>
+</div>
+
+<!-- Section: Product Ranking (dưới biểu đồ tròn) -->
+<div class="section-title">🏆 Xếp hạng sản phẩm</div>
+<div style="padding:0 12px 24px">
+  <div class="card">
+    <div class="prod-toolbar">
+      <div class="card-title" style="margin-bottom:0">Top sản phẩm theo Doanh thu</div>
+      <div class="filter-group">
+        <label>Ngành hàng</label>
+        <select id="selNganh"><option value="all">Tất cả ngành</option></select>
+      </div>
+      <div class="filter-group">
+        <label>Nhà cung cấp</label>
+        <div class="ncc-wrap" id="nccWrap">
+          <input class="ncc-input" id="nccSearch" type="text" placeholder="Tất cả NCC…" autocomplete="off" readonly />
+          <div class="ncc-list" id="nccList"></div>
+        </div>
+      </div>
+      <input class="prod-search" id="prodSearch" type="text" placeholder="Tìm tên sản phẩm…" />
+      <div class="prod-count" id="prodCount"></div>
+    </div>
+    <div class="prod-table-wrap">
+      <table class="prod-table" id="prodTable">
+        <thead><tr>
+          <th style="width:40px">#</th>
+          <th>Tên sản phẩm</th>
+          <th>Nhà cung cấp</th>
+          <th>Ngành hàng</th>
+          <th class="th-sort desc" id="thDt" style="text-align:right">Doanh thu</th>
+          <th class="th-sort" id="thSl" style="text-align:right">Sản lượng</th>
+          <th style="text-align:right">GV/DT</th>
+        </tr></thead>
+        <tbody id="prodBody"></tbody>
+        <tfoot id="prodFoot"></tfoot>
+      </table>
+    </div>
+    <div class="show-more" id="showMore" style="display:none">▼ Xem thêm</div>
+  </div>
+</div>
+
+<!-- Section 2: GV/DT ratio -->
+<div class="section-title">💰 Tỷ lệ Giá vốn / Doanh thu theo nhóm sản phẩm</div>
+<div class="charts-grid">
+  <div class="card" style="grid-column:1/-1">
+    <div class="card-title">GV/DT theo Ngành Hàng – <span id="gvShopLabel"></span></div>
+    <div class="chart-wrap-lg"><canvas id="barGvDt"></canvas></div>
+  </div>
+</div>
+
+<!-- Section 3: Doanh thu theo shop -->
+<div class="section-title">🏪 Doanh thu theo shop</div>
+<div class="charts-grid">
+  <div class="card" style="grid-column:1/-1">
+    <div class="card-title">Bảng DT & GV/DT theo shop</div>
+    <table class="shop-table" id="shopTable">
+      <thead><tr>
+        <th>Shop</th><th>Kênh</th><th>Doanh thu</th><th>Giá vốn</th><th>GV/DT</th>
+        <th class="bar-cell">Tỷ trọng DT</th>
+      </tr></thead>
+      <tbody id="shopTableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Section 4: Trend by month -->
+<div class="section-title">📈 Xu hướng Doanh thu theo tháng</div>
+<div class="charts-grid">
+  <div class="card" style="grid-column:1/-1">
+    <div class="card-title">DT các shop qua các tháng (triệu VND)</div>
+    <div class="chart-wrap-lg"><canvas id="lineTrend"></canvas></div>
+  </div>
+</div>
+
+<footer>Dashboard TMDT 2026 · 2H Books · Cập nhật từ dữ liệu Excel · <span id="updatedAt"></span></footer>
+
+<script src="dashboard_data.js"></script>
+<script>
+// Đăng ký plugin datalabels (chỉ cho pie – unregister sau khi dùng xong)
+Chart.register(ChartDataLabels);
+
+// ─── Palette ──────────────────────────────────────────────────────────────────
+const PALETTE = [
+  '#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6',
+  '#ec4899','#14b8a6','#f97316','#6366f1','#84cc16',
+  '#06b6d4','#a855f7','#e11d48'
+];
+
+// Rút gọn tên ngành hàng cho nhãn trên biểu đồ
+const SHORT_LABEL = {
+  'Trinh thám - Kinh dị': 'Trinh thám',
+  'Phát triển bản thân':  'Phát triển',
+  'Văn hóa (Lịch sử)':   'Văn hóa',
+  'Chưa phân loại':       'Chưa PL',
+};
+function shortLabel(name) {
+  return SHORT_LABEL[name] || (name.length > 11 ? name.slice(0, 10) + '…' : name);
+}
+
+function fmtVND(n) {
+  return Math.round(n).toLocaleString('vi-VN');
+}
+function pct(a,b) { return b ? (a/b*100).toFixed(1)+'%' : '—'; }
+function ratioClass(r) {
+  if (r < 0.45) return 'ratio-good';
+  if (r < 0.60) return 'ratio-mid';
+  return 'ratio-high';
+}
+
+// ─── State ───────────────────────────────────────────────────────────────────
+const D = DASHBOARD_DATA;
+let selMonth = 'all', selChannel = 'all', selShop = 'all';
+
+// Populate shop dropdown
+const shopSel = document.getElementById('selShop');
+function rebuildShopList() {
+  shopSel.innerHTML = '<option value="all">Tất cả shop</option>';
+  const shops = selChannel === 'tiktok' ? D.tiktok_shops :
+                selChannel === 'shopee' ? D.shopee_shops :
+                [...D.shopee_shops, ...D.tiktok_shops];
+  shops.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s; opt.textContent = s;
+    shopSel.appendChild(opt);
+  });
+}
+rebuildShopList();
+
+// ─── Aggregation helper ────────────────────────────────────────────────────────
+function getMonths() {
+  return selMonth === 'all' ? D.months : [selMonth];
+}
+
+function aggByNganh(channel, shopFilter) {
+  // returns { nganh: {dt, gv} }
+  const out = {};
+  const months = getMonths();
+  const shops = shopFilter !== 'all' ? [shopFilter] :
+                channel === 'all'    ? [...D.shopee_shops, ...D.tiktok_shops] :
+                channel === 'shopee' ? D.shopee_shops : D.tiktok_shops;
+
+  shops.forEach(shop => {
+    const ch = D.shopee_shops.includes(shop) ? 'shopee' : 'tiktok';
+    if (channel !== 'all' && ch !== channel) return;
+    months.forEach(m => {
+      const md = D.data[ch]?.[shop]?.[m] || {};
+      Object.entries(md).forEach(([ng, v]) => {
+        if (!out[ng]) out[ng] = {dt:0, gv:0};
+        out[ng].dt += v.dt;
+        out[ng].gv += v.gv;
+      });
+    });
+  });
+  return out;
+}
+
+function aggByShop() {
+  const months = getMonths();
+  const result = [];
+  const channels = selChannel === 'all' ? ['shopee','tiktok'] :
+                   selChannel === 'shopee' ? ['shopee'] : ['tiktok'];
+
+  channels.forEach(ch => {
+    const shops = ch === 'shopee' ? D.shopee_shops : D.tiktok_shops;
+    shops.forEach(shop => {
+      if (selShop !== 'all' && shop !== selShop) return;
+      let dt=0, gv=0;
+      months.forEach(m => {
+        const md = D.data[ch]?.[shop]?.[m] || {};
+        Object.values(md).forEach(v => { dt+=v.dt; gv+=v.gv; });
+      });
+      result.push({shop, ch, dt, gv});
+    });
+  });
+  return result.sort((a,b)=>b.dt-a.dt);
+}
+
+// ─── Charts ────────────────────────────────────────────────────────────────────
+let charts = {};
+function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+function buildPie(canvasId, legendId, channel) {
+  destroyChart(canvasId);
+  const raw = aggByNganh(channel, selShop);
+  // filter out Chưa phân loại for display, keep others
+  const entries = Object.entries(raw)
+    .filter(([k]) => k !== 'Chưa phân loại')
+    .sort((a,b) => b[1].dt - a[1].dt);
+  const chu = raw['Chưa phân loại'] || {dt:0,gv:0};
+
+  const totalDT = Object.values(raw).reduce((s,v)=>s+v.dt,0);
+  const labels = entries.map(([k])=>k).concat(chu.dt > 0 ? ['Chưa phân loại'] : []);
+  const vals   = entries.map(([,v])=>v.dt).concat(chu.dt > 0 ? [chu.dt] : []);
+  const colors = entries.map((_,i) => PALETTE[i % PALETTE.length])
+                        .concat(chu.dt > 0 ? ['#d1d5db'] : []);
+
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  charts[canvasId] = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: vals, backgroundColor: colors, borderWidth: 2, borderColor:'#fff', hoverOffset:6 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '58%',
+      layout: { padding: 28 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const v = ctx.raw;
+              return `  ${fmtVND(v)} (${pct(v, totalDT)})`;
+            }
+          }
+        },
+        datalabels: {
+          // Nhãn bên NGOÀI lát (bên phải cung, với đường kẻ nối)
+          anchor: 'end',
+          align: 'end',
+          offset: 6,
+          display: (ctx) => {
+            const v = ctx.dataset.data[ctx.dataIndex];
+            return totalDT > 0 && v / totalDT >= 0.028; // chỉ hiện khi ≥ 2.8%
+          },
+          formatter: (value, ctx) => {
+            const pctVal = totalDT ? (value / totalDT * 100).toFixed(1) : 0;
+            const name   = ctx.chart.data.labels[ctx.dataIndex];
+            return shortLabel(name) + '\n' + pctVal + '%';
+          },
+          color: (ctx) => {
+            // Dùng màu của lát cho chữ; làm tối hơn để dễ đọc
+            return colors[ctx.dataIndex] || '#374151';
+          },
+          font: { size: 10, weight: '700', lineHeight: 1.35 },
+          textAlign: 'center',
+          padding: { top: 1, bottom: 1, left: 2, right: 2 },
+          // Vẽ đường kẻ (callout) từ lát ra ngoài bằng clampToEdge
+          clamp: true,
+          clip: false,
+        }
+      }
+    }
+  });
+
+  // Legend
+  const leg = document.getElementById(legendId);
+  leg.innerHTML = '';
+  const top = [...entries, ...(chu.dt>0?[['Chưa phân loại',chu]]:[])]
+    .slice(0, 8)
+    .map(([k,v],i) => ({k, dt:v.dt, color: i < entries.length ? PALETTE[i%PALETTE.length] : '#d1d5db'}));
+
+  top.forEach(({k,dt,color}) => {
+    const row = document.createElement('div');
+    row.className = 'legend-row';
+    row.innerHTML = `
+      <div class="left">
+        <span class="dot" style="background:${color}"></span>
+        <span>${k}</span>
+      </div>
+      <div>
+        <span class="pct">${pct(dt,totalDT)}</span>
+        <span class="val" style="margin-left:8px">${fmtVND(dt)}</span>
+      </div>`;
+    leg.appendChild(row);
+  });
+}
+
+function buildBarGvDt() {
+  destroyChart('barGvDt');
+  const raw = aggByNganh(selChannel === 'all' ? 'all' : selChannel, selShop);
+  document.getElementById('gvShopLabel').textContent =
+    selShop !== 'all' ? selShop :
+    selChannel === 'shopee' ? 'Shopee' :
+    selChannel === 'tiktok' ? 'TikTok' : 'Tất cả';
+
+  const entries = Object.entries(raw)
+    .filter(([k,v]) => k !== 'Chưa phân loại' && v.dt > 0)
+    .sort((a,b) => b[1].dt - a[1].dt);
+
+  const labels = entries.map(([k])=>k);
+  const ratios = entries.map(([,v]) => v.dt ? +(v.gv/v.dt*100).toFixed(1) : 0);
+  const colors = ratios.map(r => r < 45 ? '#10b981' : r < 60 ? '#f59e0b' : '#ef4444');
+
+  const ctx = document.getElementById('barGvDt').getContext('2d');
+  charts['barGvDt'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'GV/DT (%)',
+        data: ratios,
+        backgroundColor: colors,
+        borderRadius: 6,
+        barThickness: 36,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        datalabels: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const ng = entries[ctx.dataIndex];
+              return [
+                `  GV/DT: ${ctx.raw}%`,
+                `  DT: ${fmtVND(ng[1].dt)}`,
+                `  GV: ${fmtVND(ng[1].gv)}`
+              ];
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          min: 0, max: 100,
+          ticks: { callback: v => v+'%' },
+          grid: { color: '#f3f4f6' }
+        },
+        x: { grid: { display: false } }
+      },
+      annotation: {
+        annotations: {
+          line50: { type:'line', yMin:50, yMax:50, borderColor:'#9ca3af', borderWidth:1, borderDash:[4,4] }
+        }
+      }
+    }
+  });
+}
+
+function buildShopTable() {
+  const shops = aggByShop();
+  const maxDT = shops.reduce((m,s)=>Math.max(m,s.dt),0);
+  const tbody = document.getElementById('shopTableBody');
+  tbody.innerHTML = '';
+  shops.forEach(({shop,ch,dt,gv}) => {
+    const ratio = dt ? gv/dt : 0;
+    const pctBar = maxDT ? dt/maxDT*100 : 0;
+    const ratioColor = ratio < 0.45 ? '#10b981' : ratio < 0.60 ? '#f97316' : '#ef4444';
+    const barColor   = ch === 'shopee' ? '#ee4d2d' : '#333';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-weight:600">${shop}</td>
+      <td><span class="badge badge-${ch === 'shopee' ? 'shopee' : 'tiktok'}">${ch === 'shopee' ? 'Shopee' : 'TikTok'}</span></td>
+      <td style="font-weight:600">${fmtVND(dt)}</td>
+      <td>${fmtVND(gv)}</td>
+      <td style="font-weight:700;color:${ratioColor}">${pct(gv,dt)}</td>
+      <td class="bar-cell">
+        <div class="bar-bg"><div class="bar-fill" style="width:${pctBar.toFixed(1)}%;background:${barColor}"></div></div>
+        <div style="font-size:11px;color:#9ca3af;margin-top:2px">${pct(dt, shops.reduce((s,x)=>s+x.dt,0))}</div>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function buildTrend() {
+  destroyChart('lineTrend');
+  const channels = selChannel === 'all' ? ['shopee','tiktok'] :
+                   selChannel === 'shopee' ? ['shopee'] : ['tiktok'];
+  const shopList = [];
+  channels.forEach(ch => {
+    const s = ch === 'shopee' ? D.shopee_shops : D.tiktok_shops;
+    s.forEach(shop => {
+      if (selShop === 'all' || shop === selShop) shopList.push({shop,ch});
+    });
+  });
+
+  const datasets = shopList.map(({shop,ch},i) => ({
+    label: shop,
+    data: D.months.map(m => {
+      const md = D.data[ch]?.[shop]?.[m] || {};
+      return Math.round(Object.values(md).reduce((s,v)=>s+v.dt,0) / 1e6);
+    }),
+    borderColor: PALETTE[i % PALETTE.length],
+    backgroundColor: PALETTE[i % PALETTE.length] + '22',
+    tension: 0.35,
+    fill: false,
+    pointRadius: 5,
+    pointHoverRadius: 7,
+  }));
+
+  const ctx = document.getElementById('lineTrend').getContext('2d');
+  charts['lineTrend'] = new Chart(ctx, {
+    type: 'line',
+    data: { labels: D.months, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position:'bottom', labels:{boxWidth:12,padding:16} },
+        datalabels: { display: false }
+      },
+      scales: {
+        y: { ticks: { callback: v=>v+'M' }, grid: { color:'#f3f4f6' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+}
+
+function buildKPI() {
+  const months = getMonths();
+  let shDT=0, shGV=0, ttDT=0, ttGV=0;
+
+  D.shopee_shops.forEach(shop => {
+    if (selShop !== 'all' && shop !== selShop) return;
+    months.forEach(m => {
+      const md = D.data.shopee?.[shop]?.[m] || {};
+      Object.values(md).forEach(v => { shDT+=v.dt; shGV+=v.gv; });
+    });
+  });
+  D.tiktok_shops.forEach(shop => {
+    if (selShop !== 'all' && shop !== selShop) return;
+    months.forEach(m => {
+      const md = D.data.tiktok?.[shop]?.[m] || {};
+      Object.values(md).forEach(v => { ttDT+=v.dt; ttGV+=v.gv; });
+    });
+  });
+
+  if (selChannel === 'shopee') { ttDT=0; ttGV=0; }
+  if (selChannel === 'tiktok') { shDT=0; shGV=0; }
+
+  const totDT = shDT + ttDT;
+  const totGV = shGV + ttGV;
+
+  const kpis = [
+    { label:'Tổng Doanh thu', value:fmtVND(totDT), sub:'GV/DT: '+pct(totGV,totDT), cls:'total' },
+    { label:'Shopee', value:fmtVND(shDT), sub:'GV/DT: '+pct(shGV,shDT)+' · '+pct(shDT,totDT||1)+' tổng', cls:'shopee' },
+    { label:'TikTok', value:fmtVND(ttDT), sub:'GV/DT: '+pct(ttGV,ttDT)+' · '+pct(ttDT,totDT||1)+' tổng', cls:'tiktok' },
+    { label:'Tổng Giá vốn', value:fmtVND(totGV), sub:'GV/DT: '+pct(totGV,totDT), cls:'total' },
+  ];
+
+  document.getElementById('kpiRow').innerHTML = kpis.map(k=>`
+    <div class="kpi ${k.cls}">
+      <div class="label">${k.label}</div>
+      <div class="value">${k.value}</div>
+      <div class="sub">${k.sub}</div>
+    </div>`).join('');
+}
+
+// ─── Product Ranking ──────────────────────────────────────────────────────────
+let selNganh   = 'all';
+let selNcc     = '';      // '' = tất cả NCC
+let prodSearch = '';
+let prodSort   = 'dt';   // 'dt' | 'sl'
+let prodAsc    = false;
+let prodLimit  = 30;
+
+// Populate Ngành Hàng dropdown (once)
+(function() {
+  const sel = document.getElementById('selNganh');
+  D.nganh_hang.forEach(ng => {
+    if (ng === 'Chưa phân loại') return;
+    const opt = document.createElement('option');
+    opt.value = ng; opt.textContent = ng;
+    sel.appendChild(opt);
+  });
+})();
+
+// ── NCC filter dropdown
+const ALL_NCC = [...new Set(PRODUCT_DATA.map(p => p.nc).filter(Boolean))].sort(
+  (a,b) => a.localeCompare(b, 'vi')
+);
+
+function renderNccList(filterText) {
+  const list = document.getElementById('nccList');
+  list.innerHTML = '';
+  const q = filterText.toLowerCase();
+  const items = [{ v:'', label:'Tất cả nhà cung cấp' },
+    ...ALL_NCC.filter(n => !q || n.toLowerCase().includes(q)).map(n => ({v:n, label:n}))
+  ];
+  items.forEach(({v, label}) => {
+    const d = document.createElement('div');
+    d.className = 'ncc-item' + (selNcc === v ? ' sel' : '');
+    d.textContent = label;
+    d.addEventListener('mousedown', e => { e.preventDefault(); applyNcc(v); });
+    list.appendChild(d);
+  });
+  list.style.display = items.length ? 'block' : 'none';
+}
+
+function applyNcc(v) {
+  selNcc = v;
+  const inp = document.getElementById('nccSearch');
+  inp.value = v;
+  inp.placeholder = v || 'Tất cả NCC…';
+  document.getElementById('nccList').style.display = 'none';
+  prodLimit = 30; buildProductTable();
+}
+
+const nccInput = document.getElementById('nccSearch');
+nccInput.addEventListener('focus', () => { nccInput.readOnly = false; renderNccList(nccInput.value); });
+nccInput.addEventListener('input', () => renderNccList(nccInput.value));
+nccInput.addEventListener('blur',  () => {
+  setTimeout(() => { document.getElementById('nccList').style.display = 'none'; nccInput.readOnly = true; }, 150);
+});
+document.addEventListener('click', e => {
+  if (!document.getElementById('nccWrap').contains(e.target))
+    document.getElementById('nccList').style.display = 'none';
+});
+
+function buildProductTable() {
+  // ── 1. Aggregate PRODUCT_DATA với các filter hiện tại
+  const agg = {};  // sku → {n, ng, nc, dt, sl, gv}
+  const months = selMonth === 'all' ? D.months : [selMonth];
+
+  PRODUCT_DATA.forEach(p => {
+    if (selMonth   !== 'all' && !months.includes(p.mo)) return;
+    if (selChannel !== 'all' && p.ch !== selChannel)    return;
+    if (selShop    !== 'all' && p.sh !== selShop)       return;
+    if (selNganh   !== 'all' && p.ng !== selNganh)      return;
+    if (selNcc     && p.nc !== selNcc)                  return;
+    if (prodSearch && !p.n.toLowerCase().includes(prodSearch.toLowerCase())) return;
+    if (!agg[p.k]) agg[p.k] = {n: p.n, ng: p.ng, nc: p.nc||'', dt: 0, sl: 0, gv: 0};
+    agg[p.k].dt += p.dt;
+    agg[p.k].sl += p.sl;
+    agg[p.k].gv += p.gv;
+  });
+
+  // ── 2. Sort
+  const rows = Object.entries(agg)
+    .sort((a, b) => {
+      const v = (prodSort === 'sl') ? (a[1].sl - b[1].sl) : (a[1].dt - b[1].dt);
+      return prodAsc ? v : -v;
+    });
+
+  const total = rows.length;
+  document.getElementById('prodCount').textContent = `${Math.min(prodLimit, total)} / ${total} sản phẩm`;
+
+  const showMoreEl = document.getElementById('showMore');
+  showMoreEl.style.display = total > prodLimit ? 'block' : 'none';
+  showMoreEl.textContent = `▼ Xem thêm (${total - prodLimit} sản phẩm còn lại)`;
+
+  // ── 3. Render rows
+  const tbody = document.getElementById('prodBody');
+  tbody.innerHTML = '';
+  const visible = rows.slice(0, prodLimit);
+  const totalDT = visible.reduce((s, [,v]) => s + v.dt, 0) || 1;
+
+  visible.forEach(([sku, p], i) => {
+    const rank  = i + 1;
+    const ratio = p.dt ? p.gv / p.dt : 0;
+    const ratioColor = ratio < 0.45 ? '#059669' : ratio < 0.60 ? '#d97706' : '#dc2626';
+    const rankClass  = rank === 1 ? 'rank-1' : rank === 2 ? 'rank-2' : rank === 3 ? 'rank-3' : 'rank-n';
+    const slFmt = p.sl ? p.sl.toLocaleString('vi-VN') : '—';
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="rank-badge ${rankClass}">${rank}</span></td>
+      <td><div class="prod-name">${p.n}</div></td>
+      <td style="font-size:12px; color:var(--muted)">${p.nc || '—'}</td>
+      <td><span class="tag">${p.ng}</span></td>
+      <td style="text-align:right; font-weight:700">${fmtVND(p.dt)}</td>
+      <td style="text-align:right">${slFmt}</td>
+      <td style="text-align:right; font-weight:700; color:${ratioColor}">${p.dt ? (ratio*100).toFixed(1)+'%' : '—'}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  // ── 4. Tfoot tổng (toàn bộ filtered rows)
+  const tfoot = document.getElementById('prodFoot');
+  tfoot.innerHTML = '';
+  const allDT = rows.reduce((s, [,v]) => s + v.dt, 0);
+  const allSL = rows.reduce((s, [,v]) => s + v.sl, 0);
+  const allGV = rows.reduce((s, [,v]) => s + v.gv, 0);
+  const allRatio = allDT ? allGV / allDT : 0;
+  const allRatioColor = allRatio < 0.45 ? '#059669' : allRatio < 0.60 ? '#d97706' : '#dc2626';
+  const tf = document.createElement('tr');
+  tf.innerHTML = `
+    <td colspan="4" style="font-weight:700; color:var(--primary)">Tổng (${total} sản phẩm)</td>
+    <td style="text-align:right">${fmtVND(allDT)}</td>
+    <td style="text-align:right">${allSL ? allSL.toLocaleString('vi-VN') : '—'}</td>
+    <td style="text-align:right; color:${allRatioColor}">${allDT ? (allRatio*100).toFixed(1)+'%' : '—'}</td>`;
+  tfoot.appendChild(tf);
+}
+
+// Sort headers
+document.getElementById('thDt').addEventListener('click', () => {
+  if (prodSort === 'dt') prodAsc = !prodAsc; else { prodSort = 'dt'; prodAsc = false; }
+  document.getElementById('thDt').className = 'th-sort ' + (prodSort==='dt' ? (prodAsc?'asc':'desc') : '');
+  document.getElementById('thSl').className = 'th-sort' + (prodSort==='sl' ? (prodAsc?' asc':' desc') : '');
+  prodLimit = 30; buildProductTable();
+});
+document.getElementById('thSl').addEventListener('click', () => {
+  if (prodSort === 'sl') prodAsc = !prodAsc; else { prodSort = 'sl'; prodAsc = false; }
+  document.getElementById('thDt').className = 'th-sort' + (prodSort==='dt' ? (prodAsc?' asc':' desc') : '');
+  document.getElementById('thSl').className = 'th-sort ' + (prodSort==='sl' ? (prodAsc?'asc':'desc') : '');
+  prodLimit = 30; buildProductTable();
+});
+
+// Ngành filter
+document.getElementById('selNganh').addEventListener('change', e => {
+  selNganh = e.target.value; prodLimit = 30; buildProductTable();
+});
+
+// Search
+let searchTimer;
+document.getElementById('prodSearch').addEventListener('input', e => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    prodSearch = e.target.value.trim(); prodLimit = 30; buildProductTable();
+  }, 250);
+});
+
+// Show more
+document.getElementById('showMore').addEventListener('click', () => {
+  prodLimit += 30; buildProductTable();
+});
+
+// ─── Render all ───────────────────────────────────────────────────────────────
+function renderAll() {
+  buildKPI();
+  buildPie('pieTotal',  'legendTotal',  'all');
+  buildPie('pieShopee', 'legendShopee', 'shopee');
+  buildPie('pieTiktok', 'legendTiktok', 'tiktok');
+  prodLimit = 30;
+  buildProductTable();
+  buildBarGvDt();
+  buildShopTable();
+  buildTrend();
+}
+
+// ─── Event listeners ─────────────────────────────────────────────────────────
+document.getElementById('selMonth').addEventListener('change', e => {
+  selMonth = e.target.value; renderAll();
+});
+document.getElementById('selChannel').addEventListener('change', e => {
+  selChannel = e.target.value;
+  rebuildShopList();
+  selShop = 'all';
+  shopSel.value = 'all';
+  renderAll();
+});
+shopSel.addEventListener('change', e => {
+  selShop = e.target.value; renderAll();
+});
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+document.getElementById('updatedAt').textContent =
+  'Dữ liệu từ ' + (typeof DASHBOARD_DATA !== 'undefined' ? 'T1–T5 2026' : '—');
+renderAll();
+</script>
+</body>
+</html>
