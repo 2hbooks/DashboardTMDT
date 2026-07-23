@@ -120,6 +120,19 @@
   .show-more  { text-align:center; padding:12px; font-size:13px; color:var(--primary); cursor:pointer; font-weight:600; }
   .show-more:hover { text-decoration:underline; }
 
+  /* ── Ngành multi-select ── */
+  .nganh-multi-wrap  { position:relative; }
+  .nganh-multi-btn   { border:1px solid var(--border); border-radius:8px; padding:6px 14px; font-size:13px; background:#f9fafb; cursor:pointer; color:var(--text); white-space:nowrap; min-width:150px; text-align:left; }
+  .nganh-multi-btn:hover { background:#eff6ff; color:var(--primary); border-color:var(--primary); }
+  .nganh-multi-panel { position:absolute; right:0; top:calc(100% + 6px); min-width:230px; max-height:300px; overflow-y:auto; background:#fff; border:1px solid var(--border); border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,.12); z-index:300; padding:6px 0; display:none; }
+  .nganh-multi-panel .nm-item { display:flex; align-items:center; gap:9px; padding:7px 14px; font-size:13px; cursor:pointer; }
+  .nganh-multi-panel .nm-item:hover { background:#eff6ff; }
+  .nganh-multi-panel .nm-item input[type=checkbox] { accent-color:var(--primary); width:14px; height:14px; cursor:pointer; flex-shrink:0; }
+  .nganh-multi-panel .nm-sep { height:1px; background:var(--border); margin:4px 0; }
+  .nganh-multi-panel .nm-actions { display:flex; gap:8px; padding:6px 14px; }
+  .nganh-multi-panel .nm-actions button { flex:1; font-size:12px; padding:4px 0; border:1px solid var(--border); border-radius:6px; cursor:pointer; background:#f9fafb; color:var(--text); }
+  .nganh-multi-panel .nm-actions button:hover { background:#eff6ff; color:var(--primary); }
+
   /* ── Month badges ── */
   .month-chips { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
   .chip { padding:4px 12px; border-radius:20px; font-size:12px; font-weight:600; cursor:pointer; border:2px solid transparent; background:#f3f4f6; color:var(--muted); transition:.15s; }
@@ -172,7 +185,7 @@
 <div class="header">
   <div>
     <h1>📊 Dashboard Sàn TMDT 2026</h1>
-    <div class="sub">2H Books – Dữ liệu T1–T5 2026</div>
+    <div class="sub" id="headerSub">2H Books – Đang tải…</div>
   </div>
   <div style="margin-left:auto;display:flex;gap:8px;">
     <span class="badge badge-shopee">Shopee</span>
@@ -296,6 +309,28 @@
   <div class="card" style="grid-column:1/-1">
     <div class="card-title">DT các shop qua các tháng (triệu VND)</div>
     <div class="chart-wrap-lg"><canvas id="lineTrend"></canvas></div>
+  </div>
+</div>
+
+<!-- Section 5: Xu hướng ngành hàng -->
+<div class="section-title">📊 Xu hướng doanh thu theo ngành hàng</div>
+<div class="charts-grid">
+  <div class="card" style="grid-column:1/-1">
+    <div class="card-title" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <span>DT ngành hàng qua các tháng (triệu VND)</span>
+      <div class="nganh-multi-wrap" style="margin-left:auto" id="nganhMultiWrap">
+        <button class="nganh-multi-btn" id="nganhMultiBtn">Chọn ngành hàng ▾</button>
+        <div class="nganh-multi-panel" id="nganhMultiPanel">
+          <div class="nm-actions">
+            <button id="nmSelectAll">Tất cả</button>
+            <button id="nmClearAll">Bỏ chọn</button>
+          </div>
+          <div class="nm-sep"></div>
+          <div id="nmCheckList"></div>
+        </div>
+      </div>
+    </div>
+    <div class="chart-wrap-lg"><canvas id="lineNganh"></canvas></div>
   </div>
 </div>
 
@@ -943,6 +978,7 @@ function renderAll() {
   buildBarGvDt();
   buildShopTable();
   buildTrend();
+  buildNganhTrend();
 }
 
 // ─── Event listeners ─────────────────────────────────────────────────────────
@@ -960,9 +996,140 @@ shopSel.addEventListener('change', e => {
   selShop = e.target.value; renderAll();
 });
 
+// ─── Xu hướng ngành hàng ──────────────────────────────────────────────────────
+// Tính top 5 ngành theo tổng DT để chọn mặc định
+const ALL_NGANHS = D.nganh_hang.filter(ng => ng !== 'Chưa phân loại');
+function topNganhsByDT(n) {
+  const totals = {};
+  ALL_NGANHS.forEach(ng => {
+    let dt = 0;
+    ['shopee','tiktok'].forEach(ch => {
+      const shops = ch === 'shopee' ? D.shopee_shops : D.tiktok_shops;
+      shops.forEach(shop => D.months.forEach(m => {
+        dt += D.data[ch]?.[shop]?.[m]?.[ng]?.dt || 0;
+      }));
+    });
+    totals[ng] = dt;
+  });
+  return ALL_NGANHS.slice().sort((a,b) => totals[b]-totals[a]).slice(0,n);
+}
+
+let selNganhs = new Set(topNganhsByDT(5));
+
+function updateNganhBtn() {
+  const btn = document.getElementById('nganhMultiBtn');
+  if (selNganhs.size === 0 || selNganhs.size === ALL_NGANHS.length)
+    btn.textContent = 'Tất cả ngành ▾';
+  else
+    btn.textContent = selNganhs.size + ' ngành hàng ▾';
+}
+
+function buildNganhCheckList() {
+  const wrap = document.getElementById('nmCheckList');
+  wrap.innerHTML = '';
+  const nganhs = ALL_NGANHS.slice().sort((a,b) => a.localeCompare(b, 'vi'));
+  nganhs.forEach(ng => {
+    const div = document.createElement('div');
+    div.className = 'nm-item';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.value = ng;
+    cb.checked = selNganhs.has(ng);
+    cb.addEventListener('change', () => {
+      if (cb.checked) selNganhs.add(ng); else selNganhs.delete(ng);
+      updateNganhBtn();
+      buildNganhTrend();
+    });
+    const lbl = document.createElement('span');
+    lbl.textContent = ng;
+    div.appendChild(cb); div.appendChild(lbl);
+    wrap.appendChild(div);
+  });
+}
+
+// Toggle panel
+const nganhBtn   = document.getElementById('nganhMultiBtn');
+const nganhPanel = document.getElementById('nganhMultiPanel');
+nganhBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  const isOpen = nganhPanel.style.display === 'block';
+  nganhPanel.style.display = isOpen ? 'none' : 'block';
+});
+document.addEventListener('click', e => {
+  if (!document.getElementById('nganhMultiWrap').contains(e.target))
+    nganhPanel.style.display = 'none';
+});
+document.getElementById('nmSelectAll').addEventListener('click', () => {
+  ALL_NGANHS.forEach(ng => selNganhs.add(ng));
+  buildNganhCheckList(); updateNganhBtn(); buildNganhTrend();
+});
+document.getElementById('nmClearAll').addEventListener('click', () => {
+  selNganhs.clear();
+  buildNganhCheckList(); updateNganhBtn(); buildNganhTrend();
+});
+
+function buildNganhTrend() {
+  destroyChart('lineNganh');
+  const nganhs = selNganhs.size > 0 ? [...selNganhs] : ALL_NGANHS;
+
+  const datasets = nganhs.map((ng, i) => {
+    const data = D.months.map(m => {
+      let dt = 0;
+      const channels = selChannel === 'all' ? ['shopee','tiktok'] :
+                       selChannel === 'shopee' ? ['shopee'] : ['tiktok'];
+      channels.forEach(ch => {
+        const shops = ch === 'shopee' ? D.shopee_shops : D.tiktok_shops;
+        shops.forEach(shop => {
+          if (selShop !== 'all' && shop !== selShop) return;
+          dt += D.data[ch]?.[shop]?.[m]?.[ng]?.dt || 0;
+        });
+      });
+      return Math.round(dt / 1e6 * 10) / 10;
+    });
+    return {
+      label: ng,
+      data,
+      borderColor: PALETTE[i % PALETTE.length],
+      backgroundColor: PALETTE[i % PALETTE.length] + '22',
+      tension: 0.35, fill: false,
+      pointRadius: 5, pointHoverRadius: 7,
+    };
+  });
+
+  const ctx = document.getElementById('lineNganh').getContext('2d');
+  charts['lineNganh'] = new Chart(ctx, {
+    type: 'line',
+    data: { labels: D.months, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position:'bottom', labels:{boxWidth:12,padding:14,font:{size:12}} },
+        datalabels: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => `  ${ctx.dataset.label}: ${ctx.raw}M`
+          }
+        }
+      },
+      scales: {
+        y: { ticks: { callback: v => v+'M' }, grid: { color:'#f3f4f6' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+}
+
+// Init ngành checklist + button label
+buildNganhCheckList();
+updateNganhBtn();
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
-document.getElementById('updatedAt').textContent =
-  'Dữ liệu từ ' + (typeof DASHBOARD_DATA !== 'undefined' ? 'T1–T5 2026' : '—');
+(function(){
+  const first = D.months[0], last = D.months[D.months.length-1];
+  const range = first === last ? first : first + '–' + last;
+  document.getElementById('headerSub').textContent = '2H Books – Dữ liệu ' + range + ' 2026';
+  document.getElementById('updatedAt').textContent = 'Dữ liệu ' + range + ' 2026';
+})();
 renderAll();
 </script>
 </body>
