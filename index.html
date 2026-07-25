@@ -279,6 +279,44 @@
   </div>
 </div>
 
+<!-- Section 1b: Xếp hạng Sản lượng SKU -->
+<div class="section-title">📦 Xếp hạng Sản lượng (SKU)</div>
+<div style="padding:0 12px 24px">
+  <div class="card">
+    <div class="prod-toolbar">
+      <div class="card-title" style="margin-bottom:0">Top SKU theo Sản lượng</div>
+      <div class="filter-group">
+        <label>Ngành hàng</label>
+        <select id="skuSelNganh"><option value="all">Tất cả ngành</option></select>
+      </div>
+      <div class="filter-group">
+        <label>Nhà cung cấp</label>
+        <div class="ncc-wrap" id="skuNccWrap">
+          <input class="ncc-input" id="skuNccSearch" type="text" placeholder="Tất cả NCC…" autocomplete="off" readonly />
+          <div class="ncc-list" id="skuNccList"></div>
+        </div>
+      </div>
+      <input class="prod-search" id="skuSearch" type="text" placeholder="Tìm tên sản phẩm…" />
+      <div class="prod-count" id="skuCount"></div>
+    </div>
+    <div class="prod-table-wrap">
+      <table class="prod-table" id="skuTable">
+        <thead><tr>
+          <th style="width:40px">#</th>
+          <th>Tên sản phẩm</th>
+          <th>SKU</th>
+          <th>Nhà cung cấp</th>
+          <th>Ngành hàng</th>
+          <th style="text-align:right">Sản lượng</th>
+        </tr></thead>
+        <tbody id="skuBody"></tbody>
+        <tfoot id="skuFoot"></tfoot>
+      </table>
+    </div>
+    <div class="show-more" id="skuShowMore" style="display:none">▼ Xem thêm</div>
+  </div>
+</div>
+
 <!-- Section 2: GV/DT ratio -->
 <div class="section-title">💰 Tỷ lệ Giá vốn / Doanh thu theo Nhà cung cấp</div>
 <div class="charts-grid">
@@ -973,6 +1011,123 @@ document.getElementById('showMore').addEventListener('click', () => {
   prodLimit += 30; buildProductTable();
 });
 
+// ─── SKU Sales Volume Ranking ─────────────────────────────────────────────────
+let skuNganh  = 'all';
+let skuNcc    = '';
+let skuSearch = '';
+let skuLimit  = 30;
+
+// Populate Ngành dropdown
+(function() {
+  const sel = document.getElementById('skuSelNganh');
+  const nganhs = [...new Set(SKU_DATA.map(s => s.ng).filter(Boolean))].sort((a,b) => a.localeCompare(b,'vi'));
+  nganhs.forEach(ng => {
+    const opt = document.createElement('option');
+    opt.value = ng; opt.textContent = ng;
+    sel.appendChild(opt);
+  });
+})();
+
+// NCC filter for SKU table
+const SKU_ALL_NCC = [...new Set(SKU_DATA.map(s => s.nc).filter(Boolean))].sort((a,b) => a.localeCompare(b,'vi'));
+
+function renderSkuNccList(filterText) {
+  const list = document.getElementById('skuNccList');
+  list.innerHTML = '';
+  const q = filterText.toLowerCase();
+  const items = [{v:'', label:'Tất cả nhà cung cấp'},
+    ...SKU_ALL_NCC.filter(n => !q || n.toLowerCase().includes(q)).map(n => ({v:n, label:n}))
+  ];
+  items.forEach(({v, label}) => {
+    const d = document.createElement('div');
+    d.className = 'ncc-item' + (skuNcc === v ? ' sel' : '');
+    d.textContent = label;
+    d.addEventListener('mousedown', e => { e.preventDefault(); applySkuNcc(v); });
+    list.appendChild(d);
+  });
+  list.style.display = items.length ? 'block' : 'none';
+}
+
+function applySkuNcc(v) {
+  skuNcc = v;
+  const inp = document.getElementById('skuNccSearch');
+  inp.value = v;
+  inp.placeholder = v || 'Tất cả NCC…';
+  document.getElementById('skuNccList').style.display = 'none';
+  skuLimit = 30; buildSkuTable();
+}
+
+const skuNccInput = document.getElementById('skuNccSearch');
+skuNccInput.addEventListener('focus', () => { skuNccInput.readOnly = false; renderSkuNccList(skuNccInput.value); });
+skuNccInput.addEventListener('input', () => renderSkuNccList(skuNccInput.value));
+skuNccInput.addEventListener('blur',  () => {
+  setTimeout(() => { document.getElementById('skuNccList').style.display = 'none'; skuNccInput.readOnly = true; }, 150);
+});
+document.addEventListener('click', e => {
+  if (!document.getElementById('skuNccWrap').contains(e.target))
+    document.getElementById('skuNccList').style.display = 'none';
+});
+
+function buildSkuTable() {
+  const rows = SKU_DATA.filter(s => {
+    if (skuNganh !== 'all' && s.ng !== skuNganh) return false;
+    if (skuNcc && s.nc !== skuNcc) return false;
+    if (skuSearch && !s.n.toLowerCase().includes(skuSearch.toLowerCase())) return false;
+    return true;
+  });
+
+  const total = rows.length;
+  document.getElementById('skuCount').textContent = `${Math.min(skuLimit, total)} / ${total} SKU`;
+
+  const showMoreEl = document.getElementById('skuShowMore');
+  showMoreEl.style.display = total > skuLimit ? 'block' : 'none';
+  showMoreEl.textContent = `▼ Xem thêm (${total - skuLimit} SKU còn lại)`;
+
+  const tbody = document.getElementById('skuBody');
+  tbody.innerHTML = '';
+  rows.slice(0, skuLimit).forEach((s, i) => {
+    const rank = i + 1;
+    const rankClass = rank===1?'rank-1':rank===2?'rank-2':rank===3?'rank-3':'rank-n';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="rank-badge ${rankClass}">${rank}</span></td>
+      <td><div class="prod-name">${s.n}</div></td>
+      <td style="font-size:12px; color:var(--muted); font-family:monospace">${s.sku}</td>
+      <td style="font-size:12px; color:var(--muted)">${s.nc || '—'}</td>
+      <td><span class="tag">${s.ng || '—'}</span></td>
+      <td style="text-align:right; font-weight:700">${s.sl ? s.sl.toLocaleString('vi-VN') : '—'}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  const tfoot = document.getElementById('skuFoot');
+  tfoot.innerHTML = '';
+  const totalSL = rows.reduce((s, r) => s + r.sl, 0);
+  const tf = document.createElement('tr');
+  tf.innerHTML = `
+    <td colspan="5" style="font-weight:700; color:var(--primary)">Tổng (${total} SKU)</td>
+    <td style="text-align:right">${totalSL ? totalSL.toLocaleString('vi-VN') : '—'}</td>`;
+  tfoot.appendChild(tf);
+}
+
+// Ngành filter
+document.getElementById('skuSelNganh').addEventListener('change', e => {
+  skuNganh = e.target.value; skuLimit = 30; buildSkuTable();
+});
+
+// Search
+let skuSearchTimer;
+document.getElementById('skuSearch').addEventListener('input', e => {
+  clearTimeout(skuSearchTimer);
+  skuSearchTimer = setTimeout(() => {
+    skuSearch = e.target.value.trim(); skuLimit = 30; buildSkuTable();
+  }, 250);
+});
+
+// Show more
+document.getElementById('skuShowMore').addEventListener('click', () => {
+  skuLimit += 30; buildSkuTable();
+});
+
 // ─── Render all ───────────────────────────────────────────────────────────────
 function renderAll() {
   buildKPI();
@@ -986,6 +1141,8 @@ function renderAll() {
   if (showTiktok) buildPie('pieTiktok', 'legendTiktok', 'tiktok');
   prodLimit = 30;
   buildProductTable();
+  skuLimit = 30;
+  buildSkuTable();
   buildBarGvDt();
   buildShopTable();
   buildTrend();
