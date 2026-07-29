@@ -461,6 +461,7 @@ function buildMonthPanel() {
     const lbl = document.createElement('span');
     lbl.textContent = `Tháng ${i+1} (${m})`;
     row.appendChild(cb); row.appendChild(lbl);
+    row.addEventListener('click', e => { if (e.target !== cb) cb.click(); });
     panel.appendChild(row);
   });
 }
@@ -1278,6 +1279,7 @@ function buildNganhCheckList() {
     const lbl = document.createElement('span');
     lbl.textContent = ng;
     div.appendChild(cb); div.appendChild(lbl);
+    div.addEventListener('click', e => { if (e.target !== cb) cb.click(); });
     wrap.appendChild(div);
   });
 }
