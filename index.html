@@ -98,7 +98,7 @@
   .ncc-item.sel  { background:#dbeafe; color:var(--primary); font-weight:600; }
   .ncc-badge     { display:inline-block; padding:2px 7px; border-radius:999px; font-size:10px; background:#e0e7ff; color:#4338ca; font-weight:600; margin-top:2px; }
   /* Scrollable table wrapper with sticky header */
-  .prod-table-wrap { max-height:540px; overflow-y:auto; border-radius:0 0 12px 12px; }
+  .prod-table-wrap { max-height:540px; overflow-y:auto; border-radius:0 0 12px 12px; scrollbar-gutter:stable; }
   .prod-table    { width:100%; border-collapse:collapse; font-size:13px; }
   .prod-table thead th { position:sticky; top:0; z-index:10; background:#fff; text-align:left; padding:8px 10px; color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.05em; border-bottom:2px solid var(--border); white-space:nowrap; box-shadow:0 1px 0 var(--border); }
   .prod-table td { padding:9px 10px; border-bottom:1px solid var(--border); vertical-align:middle; }
@@ -197,7 +197,10 @@
 <div class="filters">
   <div class="filter-group">
     <label>Tháng</label>
-    <select id="selMonth"></select>
+    <div class="nganh-multi-wrap" id="monthMultiWrap">
+      <button class="nganh-multi-btn" id="monthMultiBtn">T1–T6 (Lũy kế) ▾</button>
+      <div class="nganh-multi-panel" id="monthMultiPanel"></div>
+    </div>
   </div>
   <div class="divider"></div>
   <div class="filter-group">
@@ -409,16 +412,69 @@ function ratioClass(r) {
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const D = DASHBOARD_DATA;
-let selMonth = 'all', selChannel = 'all', selShop = 'all';
+let selMonths = new Set(D.months);   // multi-select tháng
+let selChannel = 'all', selShop = 'all';
 
-// Populate month dropdown động từ D.months
-(function(){
-  const ms = D.months;
-  const sel = document.getElementById('selMonth');
-  const last = ms[ms.length - 1];
-  sel.innerHTML = `<option value="all">T1 – ${last} (Lũy kế)</option>` +
-    ms.map((m,i) => `<option value="${m}">Tháng ${i+1}</option>`).join('');
-})();
+// ─── Month multi-select ───────────────────────────────────────────────────────
+function updateMonthBtn() {
+  const btn = document.getElementById('monthMultiBtn');
+  const last = D.months[D.months.length - 1];
+  if (selMonths.size === 0 || selMonths.size === D.months.length) {
+    btn.textContent = `T1–${last} (Lũy kế) ▾`;
+  } else {
+    const sorted = D.months.filter(m => selMonths.has(m));
+    btn.textContent = sorted.join(', ') + ' ▾';
+  }
+}
+
+function buildMonthPanel() {
+  const panel = document.getElementById('monthMultiPanel');
+  panel.innerHTML = '';
+
+  // Actions: Tất cả / Bỏ chọn
+  const acts = document.createElement('div');
+  acts.className = 'nm-actions';
+  ['Chọn tất cả','Bỏ chọn'].forEach((lbl, i) => {
+    const btn = document.createElement('button');
+    btn.textContent = lbl;
+    btn.addEventListener('click', () => {
+      if (i === 0) D.months.forEach(m => selMonths.add(m));
+      else selMonths.clear();
+      updateMonthBtn(); buildMonthPanel(); renderAll();
+    });
+    acts.appendChild(btn);
+  });
+  panel.appendChild(acts);
+
+  const sep = document.createElement('div'); sep.className = 'nm-sep'; panel.appendChild(sep);
+
+  D.months.forEach((m, i) => {
+    const row = document.createElement('div');
+    row.className = 'nm-item';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = selMonths.has(m);
+    cb.addEventListener('change', () => {
+      if (cb.checked) selMonths.add(m); else selMonths.delete(m);
+      if (selMonths.size === 0) { D.months.forEach(mo => selMonths.add(mo)); buildMonthPanel(); }
+      updateMonthBtn(); renderAll();
+    });
+    const lbl = document.createElement('span');
+    lbl.textContent = `Tháng ${i+1} (${m})`;
+    row.appendChild(cb); row.appendChild(lbl);
+    panel.appendChild(row);
+  });
+}
+
+document.getElementById('monthMultiBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  const panel = document.getElementById('monthMultiPanel');
+  if (panel.style.display === 'block') { panel.style.display = 'none'; return; }
+  buildMonthPanel(); panel.style.display = 'block';
+});
+document.addEventListener('click', e => {
+  if (!document.getElementById('monthMultiWrap').contains(e.target))
+    document.getElementById('monthMultiPanel').style.display = 'none';
+});
 
 // Populate shop dropdown
 const shopSel = document.getElementById('selShop');
@@ -437,7 +493,8 @@ rebuildShopList();
 
 // ─── Aggregation helper ────────────────────────────────────────────────────────
 function getMonths() {
-  return selMonth === 'all' ? D.months : [selMonth];
+  const sel = D.months.filter(m => selMonths.has(m));
+  return sel.length ? sel : D.months;
 }
 
 function aggByNganh(channel, shopFilter) {
@@ -588,9 +645,9 @@ function buildPie(canvasId, legendId, channel) {
 function aggByNcc() {
   // Aggregate PRODUCT_DATA theo NCC, tôn trọng filter tháng/kênh/shop hiện tại
   const out = {};
-  const months = selMonth === 'all' ? D.months : [selMonth];
+  const months = getMonths();
   PRODUCT_DATA.forEach(p => {
-    if (selMonth   !== 'all' && !months.includes(p.mo)) return;
+    if (!months.includes(p.mo))                         return;
     if (selChannel !== 'all' && p.ch !== selChannel)    return;
     if (selShop    !== 'all' && p.sh !== selShop)       return;
     const ncc = p.nc || 'Chưa có NCC';
@@ -907,10 +964,10 @@ document.addEventListener('click', e => {
 function buildProductTable() {
   // ── 1. Aggregate PRODUCT_DATA với các filter hiện tại
   const agg = {};  // sku → {n, ng, nc, dt, sl, gv}
-  const months = selMonth === 'all' ? D.months : [selMonth];
+  const months = getMonths();
 
   PRODUCT_DATA.forEach(p => {
-    if (selMonth   !== 'all' && !months.includes(p.mo)) return;
+    if (!months.includes(p.mo)) return;
     if (selChannel !== 'all' && p.ch !== selChannel)    return;
     if (selShop    !== 'all' && p.sh !== selShop)       return;
     if (selNganh   !== 'all' && p.ng !== selNganh)      return;
@@ -1070,11 +1127,11 @@ document.addEventListener('click', e => {
 
 function buildSkuTable() {
   // ── 1. Aggregate theo filter toàn cục (channel/shop/month) + filter riêng bảng SKU
-  const months = selMonth === 'all' ? D.months : [selMonth];
+  const months = getMonths();
   const agg = {};  // sku → {n, ng, nc, sl}
 
   SKU_DATA.forEach(s => {
-    if (selMonth   !== 'all' && !months.includes(s.mo)) return;
+    if (!months.includes(s.mo)) return;
     if (selChannel !== 'all' && s.ch !== selChannel)    return;
     if (selShop    !== 'all' && s.sh !== selShop)       return;
     if (skuNganh   !== 'all' && s.ng !== skuNganh)      return;
@@ -1162,9 +1219,7 @@ function renderAll() {
 }
 
 // ─── Event listeners ─────────────────────────────────────────────────────────
-document.getElementById('selMonth').addEventListener('change', e => {
-  selMonth = e.target.value; renderAll();
-});
+// (month filter handled by monthMultiBtn above)
 document.getElementById('selChannel').addEventListener('change', e => {
   selChannel = e.target.value;
   rebuildShopList();
