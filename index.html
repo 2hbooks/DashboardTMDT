@@ -272,6 +272,7 @@
           <th>Ngành hàng</th>
           <th class="th-sort desc" id="thDt" style="text-align:right">Doanh thu</th>
           <th class="th-sort" id="thSl" style="text-align:right">Sản lượng</th>
+          <th style="text-align:right" id="thGrowth">Tăng trưởng</th>
           <th style="text-align:right">GV/DT</th>
         </tr></thead>
         <tbody id="prodBody"></tbody>
@@ -311,6 +312,7 @@
           <th>Nhà cung cấp</th>
           <th>Ngành hàng</th>
           <th style="text-align:right">Sản lượng</th>
+          <th style="text-align:right" id="skuThGrowth">Tăng trưởng</th>
         </tr></thead>
         <tbody id="skuBody"></tbody>
         <tfoot id="skuFoot"></tfoot>
@@ -496,6 +498,28 @@ rebuildShopList();
 function getMonths() {
   const sel = D.months.filter(m => selMonths.has(m));
   return sel.length ? sel : D.months;
+}
+
+function getPrevMonths() {
+  const months = getMonths();
+  const firstIdx = D.months.indexOf(months[0]);
+  if (firstIdx < months.length) return [];   // không đủ kỳ trước
+  return D.months.slice(firstIdx - months.length, firstIdx);
+}
+
+function growthColLabel() {
+  const prev = getPrevMonths();
+  if (!prev.length) return 'Tăng trưởng';
+  const lbl = prev.length === 1 ? prev[0] : `${prev[0]}–${prev[prev.length-1]}`;
+  return `vs ${lbl}`;
+}
+
+function fmtGrowth(cur, prev) {
+  if (!prev) return '<span style="color:var(--muted)">—</span>';
+  const pct = (cur - prev) / prev * 100;
+  const color = pct >= 0 ? '#059669' : '#dc2626';
+  const arrow = pct >= 0 ? '▲' : '▼';
+  return `<span style="color:${color};font-weight:600">${arrow} ${Math.abs(pct).toFixed(1)}%</span>`;
 }
 
 function aggByNganh(channel, shopFilter) {
@@ -963,10 +987,9 @@ document.addEventListener('click', e => {
 });
 
 function buildProductTable() {
-  // ── 1. Aggregate PRODUCT_DATA với các filter hiện tại
-  const agg = {};  // sku → {n, ng, nc, dt, sl, gv}
+  // ── 1. Aggregate kỳ hiện tại
+  const agg = {};
   const months = getMonths();
-
   PRODUCT_DATA.forEach(p => {
     if (!months.includes(p.mo)) return;
     if (selChannel !== 'all' && p.ch !== selChannel)    return;
@@ -975,37 +998,51 @@ function buildProductTable() {
     if (selNcc     && p.nc !== selNcc)                  return;
     if (prodSearch && !p.n.toLowerCase().includes(prodSearch.toLowerCase())) return;
     if (!agg[p.k]) agg[p.k] = {n: p.n, ng: p.ng, nc: p.nc||'', dt: 0, sl: 0, gv: 0};
-    agg[p.k].dt += p.dt;
-    agg[p.k].sl += p.sl;
-    agg[p.k].gv += p.gv;
+    agg[p.k].dt += p.dt; agg[p.k].sl += p.sl; agg[p.k].gv += p.gv;
   });
 
-  // ── 2. Sort
-  const rows = Object.entries(agg)
-    .sort((a, b) => {
-      const v = (prodSort === 'sl') ? (a[1].sl - b[1].sl) : (a[1].dt - b[1].dt);
-      return prodAsc ? v : -v;
-    });
+  // ── 2. Aggregate kỳ trước (cùng bộ lọc trừ tháng)
+  const prevMonths = getPrevMonths();
+  const prevAgg = {};
+  prevMonths.forEach(() => {});
+  PRODUCT_DATA.forEach(p => {
+    if (!prevMonths.includes(p.mo)) return;
+    if (selChannel !== 'all' && p.ch !== selChannel)    return;
+    if (selShop    !== 'all' && p.sh !== selShop)       return;
+    if (selNganh   !== 'all' && p.ng !== selNganh)      return;
+    if (selNcc     && p.nc !== selNcc)                  return;
+    if (prodSearch && !p.n.toLowerCase().includes(prodSearch.toLowerCase())) return;
+    if (!prevAgg[p.k]) prevAgg[p.k] = {dt: 0, sl: 0};
+    prevAgg[p.k].dt += p.dt; prevAgg[p.k].sl += p.sl;
+  });
+
+  // Update header label
+  document.getElementById('thGrowth').textContent = growthColLabel();
+
+  // ── 3. Sort
+  const rows = Object.entries(agg).sort((a, b) => {
+    const v = (prodSort === 'sl') ? (a[1].sl - b[1].sl) : (a[1].dt - b[1].dt);
+    return prodAsc ? v : -v;
+  });
 
   const total = rows.length;
   document.getElementById('prodCount').textContent = `${Math.min(prodLimit, total)} / ${total} sản phẩm`;
-
   const showMoreEl = document.getElementById('showMore');
   showMoreEl.style.display = total > prodLimit ? 'block' : 'none';
   showMoreEl.textContent = `▼ Xem thêm (${total - prodLimit} sản phẩm còn lại)`;
 
-  // ── 3. Render rows
+  // ── 4. Render rows
   const tbody = document.getElementById('prodBody');
   tbody.innerHTML = '';
-  const visible = rows.slice(0, prodLimit);
-  const totalDT = visible.reduce((s, [,v]) => s + v.dt, 0) || 1;
-
-  visible.forEach(([sku, p], i) => {
+  rows.slice(0, prodLimit).forEach(([sku, p], i) => {
     const rank  = i + 1;
     const ratio = p.dt ? p.gv / p.dt : 0;
     const ratioColor = ratio < 0.45 ? '#059669' : ratio < 0.60 ? '#d97706' : '#dc2626';
-    const rankClass  = rank === 1 ? 'rank-1' : rank === 2 ? 'rank-2' : rank === 3 ? 'rank-3' : 'rank-n';
+    const rankClass  = rank===1?'rank-1':rank===2?'rank-2':rank===3?'rank-3':'rank-n';
     const slFmt = p.sl ? p.sl.toLocaleString('vi-VN') : '—';
+    const prevP = prevAgg[sku];
+    const growthMetric = prodSort === 'sl' ? 'sl' : 'dt';
+    const growthCell = fmtGrowth(p[growthMetric], prevP ? prevP[growthMetric] : 0);
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -1015,24 +1052,30 @@ function buildProductTable() {
       <td><span class="tag">${p.ng}</span></td>
       <td style="text-align:right; font-weight:700">${fmtVND(p.dt)}</td>
       <td style="text-align:right">${slFmt}</td>
+      <td style="text-align:right; font-size:12px">${growthCell}</td>
       <td style="text-align:right; font-weight:700; color:${ratioColor}">${p.dt ? (ratio*100).toFixed(1)+'%' : '—'}</td>`;
     tbody.appendChild(tr);
   });
 
-  // ── 4. Tfoot tổng (toàn bộ filtered rows)
+  // ── 5. Tfoot tổng
   const tfoot = document.getElementById('prodFoot');
   tfoot.innerHTML = '';
-  const allDT = rows.reduce((s, [,v]) => s + v.dt, 0);
-  const allSL = rows.reduce((s, [,v]) => s + v.sl, 0);
-  const allGV = rows.reduce((s, [,v]) => s + v.gv, 0);
-  const allRatio = allDT ? allGV / allDT : 0;
-  const allRatioColor = allRatio < 0.45 ? '#059669' : allRatio < 0.60 ? '#d97706' : '#dc2626';
+  const allDT = rows.reduce((s,[,v])=>s+v.dt, 0);
+  const allSL = rows.reduce((s,[,v])=>s+v.sl, 0);
+  const allGV = rows.reduce((s,[,v])=>s+v.gv, 0);
+  const prevAllDT = Object.values(prevAgg).reduce((s,v)=>s+v.dt, 0);
+  const prevAllSL = Object.values(prevAgg).reduce((s,v)=>s+v.sl, 0);
+  const allRatio = allDT ? allGV/allDT : 0;
+  const allRatioColor = allRatio<0.45?'#059669':allRatio<0.60?'#d97706':'#dc2626';
+  const growthTotalMetric = prodSort === 'sl' ? 'sl' : 'dt';
+  const growthTotal = fmtGrowth(growthTotalMetric==='sl'?allSL:allDT, growthTotalMetric==='sl'?prevAllSL:prevAllDT);
   const tf = document.createElement('tr');
   tf.innerHTML = `
     <td colspan="4" style="font-weight:700; color:var(--primary)">Tổng (${total} sản phẩm)</td>
     <td style="text-align:right">${fmtVND(allDT)}</td>
-    <td style="text-align:right">${allSL ? allSL.toLocaleString('vi-VN') : '—'}</td>
-    <td style="text-align:right; color:${allRatioColor}">${allDT ? (allRatio*100).toFixed(1)+'%' : '—'}</td>`;
+    <td style="text-align:right">${allSL?allSL.toLocaleString('vi-VN'):'—'}</td>
+    <td style="text-align:right; font-size:12px">${growthTotal}</td>
+    <td style="text-align:right; color:${allRatioColor}">${allDT?(allRatio*100).toFixed(1)+'%':'—'}</td>`;
   tfoot.appendChild(tf);
 }
 
@@ -1127,10 +1170,9 @@ document.addEventListener('click', e => {
 });
 
 function buildSkuTable() {
-  // ── 1. Aggregate theo filter toàn cục (channel/shop/month) + filter riêng bảng SKU
+  // ── 1. Aggregate kỳ hiện tại
   const months = getMonths();
-  const agg = {};  // sku → {n, ng, nc, sl}
-
+  const agg = {};
   SKU_DATA.forEach(s => {
     if (!months.includes(s.mo)) return;
     if (selChannel !== 'all' && s.ch !== selChannel)    return;
@@ -1142,7 +1184,24 @@ function buildSkuTable() {
     agg[s.sku].sl += s.sl;
   });
 
-  // ── 2. Sort theo SL giảm dần
+  // ── 2. Aggregate kỳ trước
+  const prevMonths = getPrevMonths();
+  const prevAgg = {};
+  SKU_DATA.forEach(s => {
+    if (!prevMonths.includes(s.mo)) return;
+    if (selChannel !== 'all' && s.ch !== selChannel)    return;
+    if (selShop    !== 'all' && s.sh !== selShop)       return;
+    if (skuNganh   !== 'all' && s.ng !== skuNganh)      return;
+    if (skuNcc     && s.nc !== skuNcc)                  return;
+    if (skuSearch  && !s.n.toLowerCase().includes(skuSearch.toLowerCase())) return;
+    if (!prevAgg[s.sku]) prevAgg[s.sku] = {sl: 0};
+    prevAgg[s.sku].sl += s.sl;
+  });
+
+  // Update header label
+  document.getElementById('skuThGrowth').textContent = growthColLabel();
+
+  // ── 3. Sort theo SL giảm dần
   const rows = Object.entries(agg).sort((a, b) => b[1].sl - a[1].sl);
   const total = rows.length;
 
@@ -1151,12 +1210,14 @@ function buildSkuTable() {
   showMoreEl.style.display = total > skuLimit ? 'block' : 'none';
   showMoreEl.textContent = `▼ Xem thêm (${total - skuLimit} SKU còn lại)`;
 
-  // ── 3. Render rows
+  // ── 4. Render rows
   const tbody = document.getElementById('skuBody');
   tbody.innerHTML = '';
   rows.slice(0, skuLimit).forEach(([sku, s], i) => {
     const rank = i + 1;
     const rankClass = rank===1?'rank-1':rank===2?'rank-2':rank===3?'rank-3':'rank-n';
+    const prevS = prevAgg[sku];
+    const growthCell = fmtGrowth(s.sl, prevS ? prevS.sl : 0);
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><span class="rank-badge ${rankClass}">${rank}</span></td>
@@ -1164,18 +1225,22 @@ function buildSkuTable() {
       <td style="font-size:12px; color:var(--muted); font-family:monospace">${sku}</td>
       <td style="font-size:12px; color:var(--muted)">${s.nc || '—'}</td>
       <td><span class="tag">${s.ng || '—'}</span></td>
-      <td style="text-align:right; font-weight:700">${s.sl ? s.sl.toLocaleString('vi-VN') : '—'}</td>`;
+      <td style="text-align:right; font-weight:700">${s.sl ? s.sl.toLocaleString('vi-VN') : '—'}</td>
+      <td style="text-align:right; font-size:12px">${growthCell}</td>`;
     tbody.appendChild(tr);
   });
 
-  // ── 4. Tfoot tổng
+  // ── 5. Tfoot tổng
   const tfoot = document.getElementById('skuFoot');
   tfoot.innerHTML = '';
-  const totalSL = rows.reduce((s, [, v]) => s + v.sl, 0);
+  const totalSL = rows.reduce((s,[,v])=>s+v.sl, 0);
+  const prevTotalSL = Object.values(prevAgg).reduce((s,v)=>s+v.sl, 0);
+  const growthTotal = fmtGrowth(totalSL, prevTotalSL);
   const tf = document.createElement('tr');
   tf.innerHTML = `
     <td colspan="5" style="font-weight:700; color:var(--primary)">Tổng (${total} SKU)</td>
-    <td style="text-align:right">${totalSL ? totalSL.toLocaleString('vi-VN') : '—'}</td>`;
+    <td style="text-align:right">${totalSL ? totalSL.toLocaleString('vi-VN') : '—'}</td>
+    <td style="text-align:right; font-size:12px">${growthTotal}</td>`;
   tfoot.appendChild(tf);
 }
 
