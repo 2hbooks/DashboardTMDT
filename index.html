@@ -271,8 +271,8 @@
           <th>Nhà cung cấp</th>
           <th>Ngành hàng</th>
           <th class="th-sort desc" id="thDt" style="text-align:right">Doanh thu</th>
+          <th style="text-align:right" id="thGrowth">Tăng trưởng DT</th>
           <th class="th-sort" id="thSl" style="text-align:right">Sản lượng</th>
-          <th style="text-align:right" id="thGrowth">Tăng trưởng</th>
           <th style="text-align:right">GV/DT</th>
         </tr></thead>
         <tbody id="prodBody"></tbody>
@@ -312,7 +312,7 @@
           <th>Nhà cung cấp</th>
           <th>Ngành hàng</th>
           <th style="text-align:right">Sản lượng</th>
-          <th style="text-align:right" id="skuThGrowth">Tăng trưởng</th>
+          <th style="text-align:right" id="skuThGrowth">Tăng trưởng SL</th>
         </tr></thead>
         <tbody id="skuBody"></tbody>
         <tfoot id="skuFoot"></tfoot>
@@ -507,11 +507,11 @@ function getPrevMonths() {
   return D.months.slice(firstIdx - months.length, firstIdx);
 }
 
-function growthColLabel() {
+function growthColLabel(prefix = 'Tăng trưởng') {
   const prev = getPrevMonths();
-  if (!prev.length) return 'Tăng trưởng';
+  if (!prev.length) return prefix;
   const lbl = prev.length === 1 ? prev[0] : `${prev[0]}–${prev[prev.length-1]}`;
-  return `vs ${lbl}`;
+  return `${prefix} vs ${lbl}`;
 }
 
 function fmtGrowth(cur, prev) {
@@ -1017,7 +1017,7 @@ function buildProductTable() {
   });
 
   // Update header label
-  document.getElementById('thGrowth').textContent = growthColLabel();
+  document.getElementById('thGrowth').textContent = growthColLabel('Tăng trưởng DT');
 
   // ── 3. Sort
   const rows = Object.entries(agg).sort((a, b) => {
@@ -1041,8 +1041,7 @@ function buildProductTable() {
     const rankClass  = rank===1?'rank-1':rank===2?'rank-2':rank===3?'rank-3':'rank-n';
     const slFmt = p.sl ? p.sl.toLocaleString('vi-VN') : '—';
     const prevP = prevAgg[sku];
-    const growthMetric = prodSort === 'sl' ? 'sl' : 'dt';
-    const growthCell = fmtGrowth(p[growthMetric], prevP ? prevP[growthMetric] : 0);
+    const growthCell = fmtGrowth(p.dt, prevP ? prevP.dt : 0);
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -1051,8 +1050,8 @@ function buildProductTable() {
       <td style="font-size:12px; color:var(--muted)">${p.nc || '—'}</td>
       <td><span class="tag">${p.ng}</span></td>
       <td style="text-align:right; font-weight:700">${fmtVND(p.dt)}</td>
-      <td style="text-align:right">${slFmt}</td>
       <td style="text-align:right; font-size:12px">${growthCell}</td>
+      <td style="text-align:right">${slFmt}</td>
       <td style="text-align:right; font-weight:700; color:${ratioColor}">${p.dt ? (ratio*100).toFixed(1)+'%' : '—'}</td>`;
     tbody.appendChild(tr);
   });
@@ -1067,14 +1066,13 @@ function buildProductTable() {
   const prevAllSL = Object.values(prevAgg).reduce((s,v)=>s+v.sl, 0);
   const allRatio = allDT ? allGV/allDT : 0;
   const allRatioColor = allRatio<0.45?'#059669':allRatio<0.60?'#d97706':'#dc2626';
-  const growthTotalMetric = prodSort === 'sl' ? 'sl' : 'dt';
-  const growthTotal = fmtGrowth(growthTotalMetric==='sl'?allSL:allDT, growthTotalMetric==='sl'?prevAllSL:prevAllDT);
+  const growthTotal = fmtGrowth(allDT, prevAllDT);
   const tf = document.createElement('tr');
   tf.innerHTML = `
     <td colspan="4" style="font-weight:700; color:var(--primary)">Tổng (${total} sản phẩm)</td>
     <td style="text-align:right">${fmtVND(allDT)}</td>
-    <td style="text-align:right">${allSL?allSL.toLocaleString('vi-VN'):'—'}</td>
     <td style="text-align:right; font-size:12px">${growthTotal}</td>
+    <td style="text-align:right">${allSL?allSL.toLocaleString('vi-VN'):'—'}</td>
     <td style="text-align:right; color:${allRatioColor}">${allDT?(allRatio*100).toFixed(1)+'%':'—'}</td>`;
   tfoot.appendChild(tf);
 }
@@ -1199,7 +1197,7 @@ function buildSkuTable() {
   });
 
   // Update header label
-  document.getElementById('skuThGrowth').textContent = growthColLabel();
+  document.getElementById('skuThGrowth').textContent = growthColLabel('Tăng trưởng SL');
 
   // ── 3. Sort theo SL giảm dần
   const rows = Object.entries(agg).sort((a, b) => b[1].sl - a[1].sl);
