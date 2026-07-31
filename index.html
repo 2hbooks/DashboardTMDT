@@ -29,6 +29,36 @@
   .badge { padding:4px 10px; border-radius:20px; font-size:11px; font-weight:600; }
   .badge-shopee { background:var(--shopee); color:#fff; }
   .badge-tiktok { background:#fff; color:#000; }
+  /* ── Tab Nav ── */
+  .tab-nav { background:#fff; border-bottom:2px solid var(--border); padding:0 28px; display:flex; gap:0; }
+  .tab-btn { padding:12px 20px; font-size:13px; font-weight:600; color:var(--muted); border:none; border-bottom:2px solid transparent; background:none; cursor:pointer; margin-bottom:-2px; transition:all .2s; }
+  .tab-btn:hover { color:var(--text); }
+  .tab-btn.active { color:var(--primary); border-bottom-color:var(--primary); }
+
+  /* ── TikTok Order specific ── */
+  .tt-kpi-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; padding:16px 28px 0; }
+  .tt-kpi { background:#fff; border-radius:var(--radius); border:1px solid var(--border); padding:16px 18px; border-top:3px solid #010101; }
+  .tt-kpi .label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px; }
+  .tt-kpi .value { font-size:22px; font-weight:700; }
+  .tt-kpi .sub { font-size:12px; color:var(--muted); margin-top:3px; }
+  .tt-kpi.highlight { border-top-color: #7c3aed; }
+  .tt-kpi.warn { border-top-color: #d97706; }
+  .tt-kpi.ok { border-top-color: #059669; }
+
+  .rank-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .rank-table thead th { background:#f9fafb; padding:8px 12px; text-align:left; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; border-bottom:2px solid var(--border); }
+  .rank-table td { padding:8px 12px; border-bottom:1px solid var(--border); vertical-align:middle; }
+  .rank-table tbody tr:hover { background:#f9fafb; }
+  .rank-table tbody tr.clickable-row { cursor:pointer; }
+  .rank-table tbody tr.clickable-row:hover { background:#eef2ff; }
+  .rank-table tbody tr.clickable-row.selected { background:#e0e7ff; }
+  .detail-card { margin-top:8px; }
+  .tt-filter-btn { padding:3px 10px; border-radius:12px; border:1px solid var(--border); background:#fff; font-size:11px; font-weight:600; color:var(--muted); cursor:pointer; transition:all .15s; }
+  .tt-filter-btn:hover { border-color:var(--primary); color:var(--primary); }
+  .tt-filter-btn.active { background:var(--primary); border-color:var(--primary); color:#fff; }
+  .handle-tag { font-family:monospace; font-size:12px; background:#f3f4f6; padding:2px 6px; border-radius:4px; }
+  .internal-badge { font-size:10px; background:#dbeafe; color:#1d4ed8; padding:2px 6px; border-radius:10px; font-weight:600; }
+
 
   /* ── Filters ── */
   .filters { background:#fff; border-bottom:1px solid var(--border); padding:12px 28px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; position:sticky; top:0; z-index:100; box-shadow:0 1px 4px rgba(0,0,0,.06); }
@@ -125,6 +155,7 @@
   .nganh-multi-btn   { border:1px solid var(--border); border-radius:8px; padding:6px 14px; font-size:13px; background:#f9fafb; cursor:pointer; color:var(--text); white-space:nowrap; min-width:150px; text-align:left; }
   .nganh-multi-btn:hover { background:#eff6ff; color:var(--primary); border-color:var(--primary); }
   .nganh-multi-panel { position:absolute; right:0; top:calc(100% + 6px); min-width:230px; max-height:300px; overflow-y:auto; background:#fff; border:1px solid var(--border); border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,.12); z-index:300; padding:6px 0; display:none; }
+  #ttMonthPanel { right:auto; left:0; min-width:200px; }
   .nganh-multi-panel .nm-item { display:flex; align-items:center; gap:9px; padding:7px 14px; font-size:13px; cursor:pointer; }
   .nganh-multi-panel .nm-item:hover { background:#eff6ff; }
   .nganh-multi-panel .nm-item input[type=checkbox] { accent-color:var(--primary); width:14px; height:14px; cursor:pointer; flex-shrink:0; }
@@ -192,6 +223,14 @@
     <span class="badge badge-tiktok">TikTok</span>
   </div>
 </div>
+
+<!-- Tab Navigation -->
+<div class="tab-nav">
+  <button class="tab-btn active" id="tabMain" onclick="switchTab('main')">📊 Dashboard Tổng Quát</button>
+  <button class="tab-btn" id="tabTiktok" onclick="switchTab('tiktok')">🛒 Báo cáo Đơn Hàng TikTok</button>
+</div>
+
+<div id="viewMain">
 
 <!-- Filters -->
 <div class="filters">
@@ -1442,5 +1481,596 @@ updateNganhBtn();
 })();
 renderAll();
 </script>
+</div><!-- /viewMain -->
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- TikTok Order Report View                                    -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div id="viewTiktok" style="display:none">
+
+<!-- TikTok Filters -->
+<div class="filters">
+  <div class="filter-group">
+    <label>Tháng</label>
+    <div class="nganh-multi-wrap" id="ttMonthWrap">
+      <button class="nganh-multi-btn" id="ttMonthBtn">Tất cả tháng ▾</button>
+      <div class="nganh-multi-panel" id="ttMonthPanel"></div>
+    </div>
+  </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="tt-kpi-row" id="ttKpiRow"></div>
+
+<!-- Row 1: Nguồn đơn + Kênh nội bộ vs KOC -->
+<div class="section-title">📺 Phân tích nguồn & kênh</div>
+<div class="charts-grid">
+  <div class="card">
+    <div class="card-title">Tỷ trọng doanh thu theo Nguồn</div>
+    <div class="chart-wrap"><canvas id="ttPieChannel"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Kênh nội bộ vs Tiếp thị liên kết (KOC)</div>
+    <div class="chart-wrap"><canvas id="ttPieInternalKoc"></canvas></div>
+  </div>
+</div>
+
+<!-- Row 2: Kho xuất + Tỉnh thành -->
+<div class="section-title">🗺️ Phân bố địa lý</div>
+<div class="charts-grid" style="grid-template-columns: 340px 1fr;">
+  <div class="card">
+    <div class="card-title">Xuất kho theo kho hàng</div>
+    <div class="chart-wrap"><canvas id="ttPieWarehouse"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Top 15 tỉnh/thành theo số đơn</div>
+    <div class="chart-wrap-lg" style="height:300px"><canvas id="ttBarProvince"></canvas></div>
+  </div>
+</div>
+
+<!-- Row 3: Internal channels + products -->
+<div class="section-title">🏆 Kênh nội bộ 2H</div>
+<div class="charts-grid" style="align-items:start">
+  <!-- Left: internal ranking -->
+  <div class="card">
+    <div class="card-title">Xếp hạng kênh <span class="internal-badge">INTERNAL</span>
+      <small style="font-weight:400;color:var(--muted);font-size:11px;margin-left:6px">Bấm vào kênh để xem SP</small>
+    </div>
+    <div style="overflow-x:auto;max-height:420px;overflow-y:auto;scrollbar-gutter:stable">
+      <table class="rank-table" id="ttInternalTable">
+        <thead><tr>
+          <th style="width:32px">#</th>
+          <th>Kênh</th>
+          <th style="text-align:right">Đơn hàng</th>
+          <th style="text-align:right">DT Live</th>
+          <th style="text-align:right">DT Video</th>
+          <th style="text-align:right">Tổng DT</th>
+          <th style="text-align:right">Tỷ trọng</th>
+        </tr></thead>
+        <tbody id="ttInternalBody"></tbody>
+        <tfoot><tr id="ttInternalFoot"></tr></tfoot>
+      </table>
+    </div>
+  </div>
+  <!-- Right: internal product table (always visible) -->
+  <div class="card">
+    <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+      <span>📦 SP: <span id="ttIntProdTitle" style="color:var(--primary)">Tất cả kênh nội bộ</span></span>
+      <div style="display:flex;gap:4px">
+        <button class="tt-filter-btn active" id="ttFltAll" onclick="setIntFilter('all')">Tất cả</button>
+        <button class="tt-filter-btn" id="ttFltLive" onclick="setIntFilter('live')">Live</button>
+        <button class="tt-filter-btn" id="ttFltVideo" onclick="setIntFilter('video')">Video</button>
+      </div>
+    </div>
+    <div style="overflow-x:auto;max-height:420px;overflow-y:auto;scrollbar-gutter:stable">
+      <table class="rank-table">
+        <thead><tr>
+          <th style="width:28px">#</th>
+          <th>Sản phẩm</th>
+          <th style="text-align:right">SL</th>
+          <th style="text-align:right" id="ttIntProdRevHead">Doanh thu</th>
+          <th style="text-align:right">Tỷ trọng</th>
+        </tr></thead>
+        <tbody id="ttIntProdBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Row 4: KOC channels + products -->
+<div class="section-title">🏆 Kênh Tiếp thị liên kết (KOC)</div>
+<div class="charts-grid" style="align-items:start">
+  <!-- Left: KOC ranking -->
+  <div class="card">
+    <div class="card-title">Xếp hạng Creator
+      <small style="font-weight:400;color:var(--muted);font-size:11px;margin-left:6px">Bấm vào để xem SP</small>
+    </div>
+    <div style="overflow-x:auto;max-height:420px;overflow-y:auto;scrollbar-gutter:stable">
+      <table class="rank-table" id="ttKocTable">
+        <thead><tr>
+          <th style="width:32px">#</th>
+          <th>Creator Handle</th>
+          <th style="text-align:right">Đơn hàng</th>
+          <th style="text-align:right">Doanh thu</th>
+          <th style="text-align:right">Tỷ trọng</th>
+        </tr></thead>
+        <tbody id="ttKocBody"></tbody>
+        <tfoot><tr id="ttKocFoot"></tr></tfoot>
+      </table>
+    </div>
+  </div>
+  <!-- Right: KOC product table (always visible) -->
+  <div class="card">
+    <div class="card-title">📦 SP: <span id="ttKocProdTitle" style="color:var(--primary)">Tất cả KOC</span></div>
+    <div style="overflow-x:auto;max-height:420px;overflow-y:auto;scrollbar-gutter:stable">
+      <table class="rank-table">
+        <thead><tr>
+          <th style="width:28px">#</th>
+          <th>Sản phẩm</th>
+          <th style="text-align:right">SL</th>
+          <th style="text-align:right">Doanh thu</th>
+          <th style="text-align:right">Tỷ trọng</th>
+        </tr></thead>
+        <tbody id="ttKocProdBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div><!-- /viewTiktok -->
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// TikTok Order Report JS
+// ═══════════════════════════════════════════════════════════════
+const TOD = TIKTOK_ORDER_DATA;  // alias
+let ttSelMonths = new Set(Object.keys(TOD));
+let ttCharts = {};
+
+// ── Switch tab
+function switchTab(tab) {
+  document.getElementById('viewMain').style.display    = tab === 'main'   ? '' : 'none';
+  document.getElementById('viewTiktok').style.display  = tab === 'tiktok' ? '' : 'none';
+  document.getElementById('tabMain').classList.toggle('active',   tab === 'main');
+  document.getElementById('tabTiktok').classList.toggle('active', tab === 'tiktok');
+  if (tab === 'tiktok') renderTiktokReport();
+}
+
+// ── Month panel for TikTok view
+function buildTtMonthPanel() {
+  const months = Object.keys(TOD);
+  const panel  = document.getElementById('ttMonthPanel');
+  panel.innerHTML = '';
+
+  // "Tất cả" row
+  const allDiv = document.createElement('div');
+  allDiv.className = 'nm-item';
+  allDiv.style.fontWeight = '600';
+  const allCb = document.createElement('input');
+  allCb.type = 'checkbox';
+  allCb.checked = ttSelMonths.size === months.length;
+  allCb.addEventListener('change', () => {
+    if (allCb.checked) ttSelMonths = new Set(months);
+    else ttSelMonths = new Set();
+    buildTtMonthPanel();
+    updateTtMonthBtn();
+    renderTiktokReport();
+  });
+  allDiv.append(allCb, ' Tất cả tháng');
+  allDiv.addEventListener('click', e => { if (e.target !== allCb) allCb.click(); });
+  panel.appendChild(allDiv);
+
+  // Separator
+  const sep = document.createElement('div');
+  sep.className = 'nm-sep';
+  panel.appendChild(sep);
+
+  months.forEach(m => {
+    const div = document.createElement('div');
+    div.className = 'nm-item';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = ttSelMonths.has(m);
+    cb.addEventListener('change', () => {
+      if (cb.checked) ttSelMonths.add(m);
+      else ttSelMonths.delete(m);
+      buildTtMonthPanel();
+      updateTtMonthBtn();
+      renderTiktokReport();
+    });
+    const mLabel = m.replace(/^T(\d+)$/, 'Tháng $1');
+    div.append(cb, ' ' + mLabel);
+    div.addEventListener('click', e => { if (e.target !== cb) cb.click(); });
+    panel.appendChild(div);
+  });
+}
+
+function updateTtMonthBtn() {
+  const months = Object.keys(TOD);
+  const sel = months.filter(m => ttSelMonths.has(m));
+  const btn = document.getElementById('ttMonthBtn');
+  if (!sel.length || sel.length === months.length) btn.textContent = 'Tất cả tháng ▾';
+  else if (sel.length === 1) btn.textContent = sel[0] + ' ▾';
+  else btn.textContent = sel[0] + '–' + sel[sel.length-1] + ' ▾';
+}
+
+// Month panel toggle
+document.getElementById('ttMonthBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  const panel = document.getElementById('ttMonthPanel');
+  panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+  if (panel.style.display === 'block') buildTtMonthPanel();
+});
+document.addEventListener('click', () => {
+  document.getElementById('ttMonthPanel').style.display = 'none';
+});
+
+// ── Helper: aggregate across selected months
+function ttAgg() {
+  const months = Object.keys(TOD).filter(m => ttSelMonths.has(m));
+  if (!months.length) return null;
+
+  const out = {
+    total_orders: 0, total_revenue: 0,
+    total_platform_discount: 0,
+    orders_with_platform_discount: 0,
+    return_refund_orders: 0,
+    by_channel: {}, by_warehouse: {}, by_province: {},
+    internal_channels: {}, koc_map: {}
+  };
+
+  months.forEach(m => {
+    const d = TOD[m];
+    out.total_orders   += d.total_orders;
+    out.total_revenue  += d.total_revenue;
+    out.total_platform_discount += d.total_platform_discount;
+    out.orders_with_platform_discount += d.orders_with_platform_discount;
+    out.return_refund_orders += d.return_refund_orders;
+
+    Object.entries(d.by_channel).forEach(([ch, v]) => {
+      if (!out.by_channel[ch]) out.by_channel[ch] = {orders:0,revenue:0};
+      out.by_channel[ch].orders  += v.orders;
+      out.by_channel[ch].revenue += v.revenue;
+    });
+    Object.entries(d.by_warehouse).forEach(([wh, cnt]) => {
+      out.by_warehouse[wh] = (out.by_warehouse[wh]||0) + cnt;
+    });
+    d.by_province.forEach(p => {
+      out.by_province[p.name] = (out.by_province[p.name]||0) + p.orders;
+    });
+    Object.entries(d.internal_channels).forEach(([h, v]) => {
+      if (!out.internal_channels[h]) out.internal_channels[h] = {orders:0, revenue:0, revenue_live:0, revenue_video:0};
+      out.internal_channels[h].orders        += v.orders;
+      out.internal_channels[h].revenue       += v.revenue;
+      out.internal_channels[h].revenue_live  += (v.revenue_live  || 0);
+      out.internal_channels[h].revenue_video += (v.revenue_video || 0);
+    });
+    d.koc_top.forEach(k => {
+      if (!out.koc_map[k.handle]) out.koc_map[k.handle] = {orders:0,revenue:0};
+      out.koc_map[k.handle].orders  += k.orders;
+      out.koc_map[k.handle].revenue += k.revenue;
+    });
+    // Dùng koc_total/internal_total từ ETL cho tổng chính xác (không bị cắt top N)
+    if (!out.koc_total)      out.koc_total      = {orders:0,revenue:0};
+    if (!out.internal_total) out.internal_total = {orders:0,revenue:0};
+    out.koc_total.orders      += d.koc_total.orders;
+    out.koc_total.revenue     += d.koc_total.revenue;
+    out.internal_total.orders += d.internal_total.orders;
+    out.internal_total.revenue+= d.internal_total.revenue;
+  });
+  return out;
+}
+
+// ── Chart helper: destroy & recreate
+function ttChart(id, cfg) {
+  if (ttCharts[id]) { ttCharts[id].destroy(); delete ttCharts[id]; }
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  ttCharts[id] = new Chart(ctx, cfg);
+}
+
+const TT_COLORS = ['#6366f1','#f59e0b','#10b981','#ef4444','#3b82f6','#8b5cf6','#ec4899','#14b8a6'];
+
+// ── Main render
+function renderTiktokReport() {
+  const d = ttAgg();
+  if (!d) return;
+
+  const totRev = d.total_revenue || 1;
+  const totOrd = d.total_orders  || 1;
+  const pctDisc     = (d.orders_with_platform_discount / totOrd * 100).toFixed(1);
+  const pctDiscRev  = (d.total_platform_discount / totRev * 100).toFixed(1);
+  const pctReturn   = (d.return_refund_orders / totOrd * 100).toFixed(2);
+
+  // ── KPI
+  document.getElementById('ttKpiRow').innerHTML = `
+    <div class="tt-kpi"><div class="label">Tổng đơn hàng</div>
+      <div class="value">${d.total_orders.toLocaleString('vi-VN')}</div>
+      <div class="sub">Đã loại đơn hủy</div></div>
+    <div class="tt-kpi"><div class="label">Doanh thu</div>
+      <div class="value">${fmtVND(d.total_revenue)}</div>
+      <div class="sub">Giá gốc – Chiết khấu seller</div></div>
+    <div class="tt-kpi highlight"><div class="label">Đơn có mã giảm giá sàn</div>
+      <div class="value">${pctDisc}%</div>
+      <div class="sub">${d.orders_with_platform_discount.toLocaleString('vi-VN')} / ${d.total_orders.toLocaleString('vi-VN')} đơn</div></div>
+    <div class="tt-kpi highlight"><div class="label">Giá trị mã giảm giá sàn</div>
+      <div class="value">${pctDiscRev}%</div>
+      <div class="sub">${fmtVND(d.total_platform_discount)} / tổng DT</div></div>
+    <div class="tt-kpi warn"><div class="label">Tỷ lệ đơn hoàn</div>
+      <div class="value">${pctReturn}%</div>
+      <div class="sub">${d.return_refund_orders.toLocaleString('vi-VN')} đơn hoàn</div></div>
+  `;
+
+  // ── Chart: Revenue by channel
+  const chLabels = Object.keys(d.by_channel);
+  const chRevs   = chLabels.map(c => d.by_channel[c].revenue);
+  const chTotal = chRevs.reduce((a,b)=>a+b,0);
+  ttChart('ttPieChannel', {
+    type: 'doughnut',
+    data: { labels: chLabels, datasets: [{ data: chRevs, backgroundColor: TT_COLORS, borderWidth: 2, borderColor:'#fff', hoverOffset:6 }] },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      cutout: '58%',
+      layout: { padding: 32 },
+      plugins: {
+        datalabels: {
+          anchor: 'end', align: 'end', offset: 6, clip: false, clamp: true,
+          display: ctx => ctx.dataset.data[ctx.dataIndex]/chTotal >= 0.03,
+          formatter: (val, ctx) => ctx.chart.data.labels[ctx.dataIndex] + '\n' + (val/chTotal*100).toFixed(1) + '%',
+          color: ctx => TT_COLORS[ctx.dataIndex % TT_COLORS.length],
+          font: { size: 11, weight: '700', lineHeight: 1.35 },
+          textAlign: 'center'
+        },
+        legend: { position:'bottom', labels:{ padding:14, font:{size:12}, boxWidth:12 } },
+        tooltip: { callbacks: { label: ctx => ' ' + ctx.chart.data.labels[ctx.dataIndex] + ': ' + fmtVND(ctx.raw) + ' (' + (ctx.raw/chTotal*100).toFixed(1) + '%)' }}
+      }
+    }
+  });
+
+  // ── Chart: Internal vs KOC
+  // Dùng koc_total / internal_total để tránh sai lệch do cắt top N
+  const intRev  = d.internal_total.revenue;
+  const kocRev  = d.koc_total.revenue;
+  const intOrd  = d.internal_total.orders;
+  const kocOrd  = d.koc_total.orders;
+  const ikTotal = intRev + kocRev;
+  const ikColors = ['#1a56db','#f59e0b'];
+  ttChart('ttPieInternalKoc', {
+    type: 'doughnut',
+    data: {
+      labels: ['Kênh nội bộ 2H', 'Tiếp thị liên kết (KOC)'],
+      datasets: [{ data: [intRev, kocRev], backgroundColor: ikColors, borderWidth:2, borderColor:'#fff', hoverOffset:6 }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      cutout: '58%',
+      layout: { padding: 36 },
+      plugins: {
+        datalabels: {
+          anchor: 'end', align: 'end', offset: 6, clip: false, clamp: true,
+          display: ctx => ctx.dataset.data[ctx.dataIndex]/ikTotal >= 0.03,
+          formatter: (val, ctx) => ctx.chart.data.labels[ctx.dataIndex] + '\n' + (val/ikTotal*100).toFixed(1) + '%',
+          color: ctx => ikColors[ctx.dataIndex],
+          font: { size: 11, weight: '700', lineHeight: 1.35 },
+          textAlign: 'center'
+        },
+        legend: { position:'bottom', labels:{ padding:14, font:{size:12}, boxWidth:12 } },
+        tooltip: { callbacks: { label: ctx => ' ' + ctx.chart.data.labels[ctx.dataIndex] + ': ' + fmtVND(ctx.raw) + ' — ' + (ctx.dataIndex===0?intOrd:kocOrd).toLocaleString('vi-VN') + ' đơn' }}
+      }
+    }
+  });
+
+  // ── Chart: Warehouse
+  const whLabels = Object.keys(d.by_warehouse);
+  const whCounts = whLabels.map(w => d.by_warehouse[w]);
+  const whTotal = whCounts.reduce((a,b)=>a+b,0);
+  ttChart('ttPieWarehouse', {
+    type: 'doughnut',
+    data: { labels: whLabels, datasets: [{ data: whCounts, backgroundColor: TT_COLORS, borderWidth:2, borderColor:'#fff', hoverOffset:6 }] },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      cutout: '58%',
+      layout: { padding: 36 },
+      plugins: {
+        datalabels: {
+          anchor: 'end', align: 'end', offset: 6, clip: false, clamp: true,
+          display: ctx => ctx.dataset.data[ctx.dataIndex]/whTotal >= 0.03,
+          formatter: (val, ctx) => ctx.chart.data.labels[ctx.dataIndex] + '\n' + (val/whTotal*100).toFixed(1) + '%',
+          color: ctx => TT_COLORS[ctx.dataIndex % TT_COLORS.length],
+          font: { size: 11, weight: '700', lineHeight: 1.35 },
+          textAlign: 'center'
+        },
+        legend: { position:'bottom', labels:{ padding:14, font:{size:12}, boxWidth:12 } },
+        tooltip: { callbacks: { label: ctx => ' ' + ctx.chart.data.labels[ctx.dataIndex] + ': ' + ctx.raw.toLocaleString('vi-VN') + ' đơn (' + (ctx.raw/whTotal*100).toFixed(1) + '%)' }}
+      }
+    }
+  });
+
+  // ── Chart: Province bar (top 15)
+  const provSorted = Object.entries(d.by_province).sort((a,b)=>b[1]-a[1]).slice(0,15);
+  ttChart('ttBarProvince', {
+    type: 'bar',
+    data: {
+      labels: provSorted.map(p=>p[0]),
+      datasets: [{ label:'Số đơn', data: provSorted.map(p=>p[1]),
+        backgroundColor:'#6366f1', borderRadius:4 }]
+    },
+    options: {
+      indexAxis:'y', plugins:{ legend:{display:false}, datalabels:{
+        anchor:'end', align:'end', formatter: v=>v.toLocaleString('vi-VN'), font:{size:11}
+      }},
+      scales: { x:{ grid:{display:false}, ticks:{font:{size:11}} }, y:{ticks:{font:{size:11}}} }
+    }
+  });
+
+  // ── Table: Internal channels
+  const intRows = Object.entries(d.internal_channels).sort((a,b)=>b[1].revenue-a[1].revenue);
+  const intTotalRev = intRows.reduce((s,[,v])=>s+v.revenue,0)||1;
+  const intLiveTotal  = intRows.reduce((s,[,v])=>s+(v.revenue_live||0), 0);
+  const intVideoTotal = intRows.reduce((s,[,v])=>s+(v.revenue_video||0), 0);
+  document.getElementById('ttInternalBody').innerHTML = intRows.map(([h,v],i)=>`
+    <tr class="clickable-row" data-handle="${h}" onclick="selectIntChannel('${h.replace(/'/g,"\\'")}',this)">
+      <td><span class="rank-badge ${i<3?'rank-'+(i+1):'rank-n'}">${i+1}</span></td>
+      <td><span class="handle-tag">@${h}</span></td>
+      <td style="text-align:right">${v.orders.toLocaleString('vi-VN')}</td>
+      <td style="text-align:right">${v.revenue_live ? fmtVND(v.revenue_live) : '<span style=\"color:var(--muted)\">—</span>'}</td>
+      <td style="text-align:right">${v.revenue_video ? fmtVND(v.revenue_video) : '<span style=\"color:var(--muted)\">—</span>'}</td>
+      <td style="text-align:right;font-weight:700">${fmtVND(v.revenue)}</td>
+      <td style="text-align:right;color:var(--muted)">${(v.revenue/intTotalRev*100).toFixed(1)}%</td>
+    </tr>`).join('');
+  document.getElementById('ttInternalFoot').innerHTML = `
+    <td colspan="2" style="font-weight:700;color:var(--primary)">Tổng nội bộ</td>
+    <td style="text-align:right;font-weight:700">${intOrd.toLocaleString('vi-VN')}</td>
+    <td style="text-align:right;font-weight:700">${fmtVND(intLiveTotal)}</td>
+    <td style="text-align:right;font-weight:700">${fmtVND(intVideoTotal)}</td>
+    <td style="text-align:right;font-weight:700">${fmtVND(intRev)}</td>
+    <td style="text-align:right">${(intRev/(intRev+kocRev)*100).toFixed(1)}%</td>`;
+
+  // ── Table: KOC channels
+  const kocRows = Object.entries(d.koc_map).sort((a,b)=>b[1].revenue-a[1].revenue);
+  const kocTotalRev = kocRows.reduce((s,[,v])=>s+v.revenue,0)||1;
+  document.getElementById('ttKocBody').innerHTML = kocRows.slice(0,50).map(([h,v],i)=>`
+    <tr class="clickable-row" data-handle="${h}" onclick="selectKocHandle('${h.replace(/'/g,"\\'")}',this)">
+      <td><span class="rank-badge ${i<3?'rank-'+(i+1):'rank-n'}">${i+1}</span></td>
+      <td><span class="handle-tag">@${h||'(trống)'}</span></td>
+      <td style="text-align:right">${v.orders.toLocaleString('vi-VN')}</td>
+      <td style="text-align:right;font-weight:700">${fmtVND(v.revenue)}</td>
+      <td style="text-align:right;color:var(--muted)">${(v.revenue/kocTotalRev*100).toFixed(1)}%</td>
+    </tr>`).join('');
+  document.getElementById('ttKocFoot').innerHTML = `
+    <td colspan="2" style="font-weight:700;color:var(--primary)">Tổng KOC</td>
+    <td style="text-align:right;font-weight:700">${kocOrd.toLocaleString('vi-VN')}</td>
+    <td style="text-align:right;font-weight:700">${fmtVND(kocRev)}</td>
+    <td style="text-align:right">${(kocRev/(intRev+kocRev)*100).toFixed(1)}%</td>`;
+
+  // Reset selections and render product panels
+  ttIntSelectedHandle = null;
+  ttKocSelectedHandle = null;
+  renderInternalProducts();
+  renderKocProducts();
+}
+
+// ── State for channel selection and filter
+let ttIntSelectedHandle = null;   // null = all internal channels
+let ttKocSelectedHandle = null;   // null = all KOC
+let ttIntFilter = 'all';          // 'all' | 'live' | 'video'
+
+// ── Aggregate handle_products across selected months for given handles (array or null=all internal)
+function aggregateHandleProducts(handles) {
+  const d = ttAgg();
+  const allIntHandles = Object.keys(d.internal_channels);
+  const targetHandles = handles || allIntHandles;
+  const prodMap = {};
+  for (const m of ttSelMonths) {
+    const hp = (TOD[m] && TOD[m].handle_products) || {};
+    for (const h of targetHandles) {
+      for (const p of (hp[h] || [])) {
+        const k = p.n;  // group by name to merge variants
+        if (!prodMap[k]) prodMap[k] = { n: p.n, qty: 0, rev: 0, rl: 0, rv: 0 };
+        prodMap[k].qty += p.qty;
+        prodMap[k].rev += p.rev;
+        prodMap[k].rl  += (p.rl || 0);
+        prodMap[k].rv  += (p.rv || 0);
+      }
+    }
+  }
+  return Object.values(prodMap);
+}
+
+// ── Aggregate KOC handle_products
+function aggregateKocProducts(handles) {
+  const d = ttAgg();
+  const allKocHandles = Object.keys(d.koc_map);
+  const targetHandles = handles || allKocHandles;
+  const prodMap = {};
+  for (const m of ttSelMonths) {
+    const hp = (TOD[m] && TOD[m].handle_products) || {};
+    for (const h of targetHandles) {
+      for (const p of (hp[h] || [])) {
+        const k = p.n;  // group by name to merge variants
+        if (!prodMap[k]) prodMap[k] = { n: p.n, qty: 0, rev: 0 };
+        prodMap[k].qty += p.qty;
+        prodMap[k].rev += p.rev;
+      }
+    }
+  }
+  return Object.values(prodMap);
+}
+
+// ── Render internal product panel
+function renderInternalProducts() {
+  const prods = aggregateHandleProducts(ttIntSelectedHandle ? [ttIntSelectedHandle] : null);
+  const revKey = ttIntFilter === 'live' ? 'rl' : ttIntFilter === 'video' ? 'rv' : 'rev';
+  const sorted = prods.filter(p => p[revKey] > 0).sort((a,b) => b[revKey]-a[revKey]);
+  const total  = sorted.reduce((s,p) => s+p[revKey], 0) || 1;
+  const revLabel = ttIntFilter === 'live' ? 'DT Live' : ttIntFilter === 'video' ? 'DT Video' : 'Doanh thu';
+  document.getElementById('ttIntProdRevHead').textContent = revLabel;
+  document.getElementById('ttIntProdBody').innerHTML = sorted.length
+    ? sorted.map((p,i) => `<tr>
+        <td><span class="rank-badge ${i<3?'rank-'+(i+1):'rank-n'}">${i+1}</span></td>
+        <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.n.replace(/"/g,'&quot;')}">${p.n}</td>
+        <td style="text-align:right;white-space:nowrap">${p.qty.toLocaleString('vi-VN')}</td>
+        <td style="text-align:right;font-weight:700;white-space:nowrap">${fmtVND(p[revKey])}</td>
+        <td style="text-align:right;color:var(--muted);white-space:nowrap">${(p[revKey]/total*100).toFixed(1)}%</td>
+      </tr>`).join('')
+    : `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Không có dữ liệu</td></tr>`;
+}
+
+// ── Render KOC product panel
+function renderKocProducts() {
+  const prods = aggregateKocProducts(ttKocSelectedHandle ? [ttKocSelectedHandle] : null);
+  const sorted = prods.sort((a,b) => b.rev-a.rev);
+  const total  = sorted.reduce((s,p) => s+p.rev, 0) || 1;
+  document.getElementById('ttKocProdBody').innerHTML = sorted.length
+    ? sorted.map((p,i) => `<tr>
+        <td><span class="rank-badge ${i<3?'rank-'+(i+1):'rank-n'}">${i+1}</span></td>
+        <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.n.replace(/"/g,'&quot;')}">${p.n}</td>
+        <td style="text-align:right;white-space:nowrap">${p.qty.toLocaleString('vi-VN')}</td>
+        <td style="text-align:right;font-weight:700;white-space:nowrap">${fmtVND(p.rev)}</td>
+        <td style="text-align:right;color:var(--muted);white-space:nowrap">${(p.rev/total*100).toFixed(1)}%</td>
+      </tr>`).join('')
+    : `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Không có dữ liệu</td></tr>`;
+}
+
+// ── Click internal channel row
+function selectIntChannel(handle, rowEl) {
+  const body = document.getElementById('ttInternalBody');
+  body.querySelectorAll('tr').forEach(r => r.classList.remove('selected'));
+  if (ttIntSelectedHandle === handle) {
+    ttIntSelectedHandle = null;
+    document.getElementById('ttIntProdTitle').textContent = 'Tất cả kênh nội bộ';
+  } else {
+    ttIntSelectedHandle = handle;
+    rowEl.classList.add('selected');
+    document.getElementById('ttIntProdTitle').textContent = '@' + handle;
+  }
+  renderInternalProducts();
+}
+
+// ── Click KOC row
+function selectKocHandle(handle, rowEl) {
+  const body = document.getElementById('ttKocBody');
+  body.querySelectorAll('tr').forEach(r => r.classList.remove('selected'));
+  if (ttKocSelectedHandle === handle) {
+    ttKocSelectedHandle = null;
+    document.getElementById('ttKocProdTitle').textContent = 'Tất cả KOC';
+  } else {
+    ttKocSelectedHandle = handle;
+    rowEl.classList.add('selected');
+    document.getElementById('ttKocProdTitle').textContent = '@' + handle;
+  }
+  renderKocProducts();
+}
+
+// ── Live/Video filter for internal products
+function setIntFilter(f) {
+  ttIntFilter = f;
+  ['All','Live','Video'].forEach(x =>
+    document.getElementById('ttFlt'+x).classList.toggle('active', x.toLowerCase()===f)
+  );
+  renderInternalProducts();
+}
+</script>
+
 </body>
 </html>
