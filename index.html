@@ -1652,73 +1652,68 @@ function switchTab(tab) {
   if (tab === 'tiktok') { updateTtMonthBtn(); renderTiktokReport(); }
 }
 
-// ── Month panel for TikTok view
+// ── Month panel for TikTok view (giống main dashboard: không rebuild khi tick lẻ)
 function buildTtMonthPanel() {
-  const months = Object.keys(TOD);
+  const months = _ttAllMonths;
   const panel  = document.getElementById('ttMonthPanel');
   panel.innerHTML = '';
 
-  // "Tất cả" row
-  const allDiv = document.createElement('div');
-  allDiv.className = 'nm-item';
-  allDiv.style.fontWeight = '600';
-  const allCb = document.createElement('input');
-  allCb.type = 'checkbox';
-  allCb.checked = ttSelMonths.size === months.length;
-  allCb.addEventListener('change', () => {
-    if (allCb.checked) ttSelMonths = new Set(months);
-    else ttSelMonths = new Set();
-    buildTtMonthPanel();
-    updateTtMonthBtn();
-    renderTiktokReport();
+  // Action buttons: Chọn tất cả / Bỏ chọn
+  const acts = document.createElement('div');
+  acts.className = 'nm-actions';
+  ['Chọn tất cả', 'Bỏ chọn'].forEach((lbl, i) => {
+    const btn = document.createElement('button');
+    btn.textContent = lbl;
+    btn.addEventListener('click', () => {
+      if (i === 0) ttSelMonths = new Set(months);
+      else ttSelMonths = new Set();
+      updateTtMonthBtn(); buildTtMonthPanel(); renderTiktokReport();
+    });
+    acts.appendChild(btn);
   });
-  allDiv.append(allCb, ' Tất cả tháng');
-  allDiv.addEventListener('click', e => { if (e.target !== allCb) allCb.click(); });
-  panel.appendChild(allDiv);
+  panel.appendChild(acts);
 
-  // Separator
   const sep = document.createElement('div');
   sep.className = 'nm-sep';
   panel.appendChild(sep);
 
-  months.forEach(m => {
-    const div = document.createElement('div');
-    div.className = 'nm-item';
+  months.forEach((m, i) => {
+    const row = document.createElement('div');
+    row.className = 'nm-item';
     const cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.checked = ttSelMonths.has(m);
+    cb.type = 'checkbox'; cb.checked = ttSelMonths.has(m);
     cb.addEventListener('change', () => {
-      if (cb.checked) ttSelMonths.add(m);
-      else ttSelMonths.delete(m);
-      buildTtMonthPanel();
-      updateTtMonthBtn();
-      renderTiktokReport();
+      if (cb.checked) ttSelMonths.add(m); else ttSelMonths.delete(m);
+      if (ttSelMonths.size === 0) { ttSelMonths = new Set(months); buildTtMonthPanel(); }
+      updateTtMonthBtn(); renderTiktokReport();
+      // KHÔNG gọi buildTtMonthPanel() → panel không bị rebuild → không đóng
     });
-    const mLabel = m.replace(/^T(\d+)$/, 'Tháng $1');
-    div.append(cb, ' ' + mLabel);
-    div.addEventListener('click', e => { if (e.target !== cb) cb.click(); });
-    panel.appendChild(div);
+    const lbl = document.createElement('span');
+    lbl.textContent = `Tháng ${i+1} (${m})`;
+    row.appendChild(cb); row.appendChild(lbl);
+    row.addEventListener('click', e => { if (e.target !== cb) cb.click(); });
+    panel.appendChild(row);
   });
 }
 
 function updateTtMonthBtn() {
-  const months = Object.keys(TOD);
+  const months = _ttAllMonths;
   const sel = months.filter(m => ttSelMonths.has(m));
   const btn = document.getElementById('ttMonthBtn');
   if (!sel.length || sel.length === months.length) btn.textContent = 'Tất cả tháng ▾';
-  else if (sel.length === 1) btn.textContent = sel[0] + ' ▾';
-  else btn.textContent = sel[0] + '–' + sel[sel.length-1] + ' ▾';
+  else btn.textContent = sel.join(', ') + ' ▾';
 }
 
 // Month panel toggle
 document.getElementById('ttMonthBtn').addEventListener('click', e => {
   e.stopPropagation();
   const panel = document.getElementById('ttMonthPanel');
-  panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
-  if (panel.style.display === 'block') buildTtMonthPanel();
+  if (panel.style.display === 'block') { panel.style.display = 'none'; return; }
+  buildTtMonthPanel(); panel.style.display = 'block';
 });
-document.addEventListener('click', () => {
-  document.getElementById('ttMonthPanel').style.display = 'none';
+document.addEventListener('click', e => {
+  if (!document.getElementById('ttMonthWrap').contains(e.target))
+    document.getElementById('ttMonthPanel').style.display = 'none';
 });
 
 // ── Helper: aggregate across selected months
