@@ -453,7 +453,7 @@ function ratioClass(r) {
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const D = DASHBOARD_DATA;
-let selMonths = new Set(D.months);   // multi-select tháng
+let selMonths = new Set([D.months[D.months.length - 1]]);   // mặc định tháng gần nhất
 let selChannel = 'all', selShop = 'all';
 
 // ─── Month multi-select ───────────────────────────────────────────────────────
@@ -1479,6 +1479,7 @@ updateNganhBtn();
   document.getElementById('headerSub').textContent = '2H Books – Dữ liệu ' + range + ' 2026';
   document.getElementById('updatedAt').textContent = 'Dữ liệu ' + range + ' 2026';
 })();
+updateMonthBtn();
 renderAll();
 </script>
 </div><!-- /viewMain -->
@@ -1624,7 +1625,11 @@ renderAll();
 // TikTok Order Report JS
 // ═══════════════════════════════════════════════════════════════
 const TOD = TIKTOK_ORDER_DATA;  // alias
-let ttSelMonths = new Set(Object.keys(TOD));
+const _ttAllMonths = Object.keys(TOD).sort((a,b)=>{
+  const p = s => { const [t,y] = s.split('/'); return +y*12+parseInt(t.slice(1)); };
+  return p(a)-p(b);
+});
+let ttSelMonths = new Set([_ttAllMonths[_ttAllMonths.length-1]]);  // mặc định tháng gần nhất
 let ttCharts = {};
 
 // ── Switch tab
@@ -1633,7 +1638,7 @@ function switchTab(tab) {
   document.getElementById('viewTiktok').style.display  = tab === 'tiktok' ? '' : 'none';
   document.getElementById('tabMain').classList.toggle('active',   tab === 'main');
   document.getElementById('tabTiktok').classList.toggle('active', tab === 'tiktok');
-  if (tab === 'tiktok') renderTiktokReport();
+  if (tab === 'tiktok') { updateTtMonthBtn(); renderTiktokReport(); }
 }
 
 // ── Month panel for TikTok view
