@@ -1515,19 +1515,6 @@ renderAll();
   </div>
 </div>
 
-<!-- Row 2: Kho xuất + Tỉnh thành -->
-<div class="section-title">🗺️ Phân bố địa lý</div>
-<div class="charts-grid" style="grid-template-columns: 340px 1fr;">
-  <div class="card">
-    <div class="card-title">Xuất kho theo kho hàng</div>
-    <div class="chart-wrap"><canvas id="ttPieWarehouse"></canvas></div>
-  </div>
-  <div class="card">
-    <div class="card-title">Top 15 tỉnh/thành theo số đơn</div>
-    <div class="chart-wrap-lg" style="height:300px"><canvas id="ttBarProvince"></canvas></div>
-  </div>
-</div>
-
 <!-- Row 3: Internal channels + products -->
 <div class="section-title">🏆 Kênh nội bộ 2H</div>
 <div class="charts-grid" style="align-items:start">
@@ -1555,7 +1542,7 @@ renderAll();
   <!-- Right: internal product table (always visible) -->
   <div class="card">
     <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
-      <span>📦 SP: <span id="ttIntProdTitle" style="color:var(--primary)">Tất cả kênh nội bộ</span></span>
+      <span>📦 Sản phẩm: <span id="ttIntProdTitle" style="color:var(--primary)">Tất cả kênh nội bộ</span><button id="ttIntClearBtn" onclick="clearIntFilter()" style="display:none;margin-left:8px;padding:1px 8px;border-radius:10px;border:1px solid var(--border);background:#fff;color:var(--muted);font-size:11px;cursor:pointer;line-height:1.8">✕</button></span>
       <div style="display:flex;gap:4px">
         <button class="tt-filter-btn active" id="ttFltAll" onclick="setIntFilter('all')">Tất cả</button>
         <button class="tt-filter-btn" id="ttFltLive" onclick="setIntFilter('live')">Live</button>
@@ -1601,7 +1588,7 @@ renderAll();
   </div>
   <!-- Right: KOC product table (always visible) -->
   <div class="card">
-    <div class="card-title">📦 SP: <span id="ttKocProdTitle" style="color:var(--primary)">Tất cả KOC</span></div>
+    <div class="card-title" style="display:flex;align-items:center;gap:8px">📦 Sản phẩm: <span id="ttKocProdTitle" style="color:var(--primary)">Tất cả KOC</span><button id="ttKocClearBtn" onclick="clearKocFilter()" style="display:none;padding:1px 8px;border-radius:10px;border:1px solid var(--border);background:#fff;color:var(--muted);font-size:11px;cursor:pointer;line-height:1.8">✕</button></div>
     <div style="overflow-x:auto;max-height:420px;overflow-y:auto;scrollbar-gutter:stable">
       <table class="rank-table">
         <thead><tr>
@@ -1614,6 +1601,19 @@ renderAll();
         <tbody id="ttKocProdBody"></tbody>
       </table>
     </div>
+  </div>
+</div>
+
+<!-- Phân bố địa lý (cuối cùng) -->
+<div class="section-title">🗺️ Phân bố địa lý</div>
+<div class="charts-grid" style="grid-template-columns: 340px 1fr;">
+  <div class="card">
+    <div class="card-title">Xuất kho theo kho hàng</div>
+    <div class="chart-wrap"><canvas id="ttPieWarehouse"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Top 15 tỉnh/thành theo số đơn</div>
+    <div class="chart-wrap-lg" style="height:300px"><canvas id="ttBarProvince"></canvas></div>
   </div>
 </div>
 
@@ -2039,11 +2039,20 @@ function selectIntChannel(handle, rowEl) {
   if (ttIntSelectedHandle === handle) {
     ttIntSelectedHandle = null;
     document.getElementById('ttIntProdTitle').textContent = 'Tất cả kênh nội bộ';
+    document.getElementById('ttIntClearBtn').style.display = 'none';
   } else {
     ttIntSelectedHandle = handle;
     rowEl.classList.add('selected');
     document.getElementById('ttIntProdTitle').textContent = '@' + handle;
+    document.getElementById('ttIntClearBtn').style.display = '';
   }
+  renderInternalProducts();
+}
+function clearIntFilter() {
+  ttIntSelectedHandle = null;
+  document.getElementById('ttInternalBody').querySelectorAll('tr').forEach(r => r.classList.remove('selected'));
+  document.getElementById('ttIntProdTitle').textContent = 'Tất cả kênh nội bộ';
+  document.getElementById('ttIntClearBtn').style.display = 'none';
   renderInternalProducts();
 }
 
@@ -2054,11 +2063,20 @@ function selectKocHandle(handle, rowEl) {
   if (ttKocSelectedHandle === handle) {
     ttKocSelectedHandle = null;
     document.getElementById('ttKocProdTitle').textContent = 'Tất cả KOC';
+    document.getElementById('ttKocClearBtn').style.display = 'none';
   } else {
     ttKocSelectedHandle = handle;
     rowEl.classList.add('selected');
     document.getElementById('ttKocProdTitle').textContent = '@' + handle;
+    document.getElementById('ttKocClearBtn').style.display = '';
   }
+  renderKocProducts();
+}
+function clearKocFilter() {
+  ttKocSelectedHandle = null;
+  document.getElementById('ttKocBody').querySelectorAll('tr').forEach(r => r.classList.remove('selected'));
+  document.getElementById('ttKocProdTitle').textContent = 'Tất cả KOC';
+  document.getElementById('ttKocClearBtn').style.display = 'none';
   renderKocProducts();
 }
 
