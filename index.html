@@ -58,6 +58,9 @@
   .tt-filter-btn.active { background:var(--primary); border-color:var(--primary); color:#fff; }
   .handle-tag { font-family:monospace; font-size:12px; background:#f3f4f6; padding:2px 6px; border-radius:4px; }
   .internal-badge { font-size:10px; background:#dbeafe; color:#1d4ed8; padding:2px 6px; border-radius:10px; font-weight:600; }
+  .sobо-badge { font-size:10px; background:#fef3c7; color:#92400e; padding:1px 6px; border-radius:10px; font-weight:600; margin-left:4px; }
+  .sobo-banner { display:flex; align-items:center; gap:8px; background:#fffbeb; border:1px solid #fcd34d; border-radius:8px; padding:8px 14px; margin:0 28px 12px; font-size:12px; color:#78350f; }
+  .sobo-banner strong { font-weight:700; }
 
 
   /* ── Filters ── */
@@ -258,6 +261,9 @@
     </select>
   </div>
 </div>
+
+<!-- Sơ bộ banner -->
+<div id="mainSoboBanner" style="display:none"></div>
 
 <!-- KPI Cards -->
 <div class="kpi-row" id="kpiRow"></div>
@@ -486,7 +492,7 @@ function buildMonthPanel() {
     btn.addEventListener('click', () => {
       if (i === 0) D.months.forEach(m => selMonths.add(m));
       else selMonths.clear();
-      updateMonthBtn(); buildMonthPanel(); renderAll();
+      updateMonthBtn(); updateMainSoboBanner(); buildMonthPanel(); renderAll();
     });
     acts.appendChild(btn);
   });
@@ -502,14 +508,32 @@ function buildMonthPanel() {
     cb.addEventListener('change', () => {
       if (cb.checked) selMonths.add(m); else selMonths.delete(m);
       if (selMonths.size === 0) { D.months.forEach(mo => selMonths.add(mo)); buildMonthPanel(); }
-      updateMonthBtn(); renderAll();
+      updateMonthBtn(); updateMainSoboBanner(); renderAll();
     });
     const lbl = document.createElement('span');
     lbl.textContent = `Tháng ${i+1} (${m})`;
+    const meta = D.months_meta && D.months_meta[m];
+    if (meta && meta.is_preliminary) {
+      const badge = document.createElement('span');
+      badge.className = 'sobо-badge'; badge.textContent = 'Sơ bộ';
+      lbl.appendChild(badge);
+    }
     row.appendChild(cb); row.appendChild(lbl);
     row.addEventListener('click', e => { if (e.target !== cb) cb.click(); });
     panel.appendChild(row);
   });
+}
+
+function updateMainSoboBanner() {
+  const prelimMonths = D.months.filter(m => selMonths.has(m) && D.months_meta && D.months_meta[m] && D.months_meta[m].is_preliminary);
+  const el = document.getElementById('mainSoboBanner');
+  if (!el) return;
+  if (prelimMonths.length === 0) { el.style.display = 'none'; return; }
+  const names = prelimMonths.join(', ');
+  const dates = prelimMonths.map(m => D.months_meta[m].updated_at).join(', ');
+  el.className = 'sobo-banner';
+  el.style.display = 'flex';
+  el.innerHTML = `⚠️ <strong>Dữ liệu sơ bộ:</strong> ${names} — cập nhật ${dates}, chưa loại trừ hết đơn hoàn hủy. Dữ liệu chính thức sau ngày 15 tháng sau.`;
 }
 
 document.getElementById('monthMultiBtn').addEventListener('click', e => {
@@ -1485,6 +1509,7 @@ updateNganhBtn();
   document.getElementById('updatedAt').textContent = 'Dữ liệu ' + range + ' 2026';
 })();
 updateMonthBtn();
+updateMainSoboBanner();
 renderAll();
 </script>
 </div><!-- /viewMain -->
@@ -1504,6 +1529,9 @@ renderAll();
     </div>
   </div>
 </div>
+
+<!-- Sơ bộ banner -->
+<div id="ttSoboBanner" style="display:none"></div>
 
 <!-- KPI Cards -->
 <div class="tt-kpi-row" id="ttKpiRow"></div>
@@ -1649,7 +1677,7 @@ function switchTab(tab) {
   document.getElementById('viewTiktok').style.display  = tab === 'tiktok' ? '' : 'none';
   document.getElementById('tabMain').classList.toggle('active',   tab === 'main');
   document.getElementById('tabTiktok').classList.toggle('active', tab === 'tiktok');
-  if (tab === 'tiktok') { updateTtMonthBtn(); renderTiktokReport(); }
+  if (tab === 'tiktok') { updateTtMonthBtn(); updateTtSoboBanner(); renderTiktokReport(); }
 }
 
 // ── Month panel for TikTok view (giống main dashboard: không rebuild khi tick lẻ)
@@ -1685,15 +1713,32 @@ function buildTtMonthPanel() {
     cb.addEventListener('change', () => {
       if (cb.checked) ttSelMonths.add(m); else ttSelMonths.delete(m);
       if (ttSelMonths.size === 0) { ttSelMonths = new Set(months); buildTtMonthPanel(); }
-      updateTtMonthBtn(); renderTiktokReport();
+      updateTtMonthBtn(); updateTtSoboBanner(); renderTiktokReport();
       // KHÔNG gọi buildTtMonthPanel() → panel không bị rebuild → không đóng
     });
     const lbl = document.createElement('span');
     lbl.textContent = `Tháng ${i+1} (${m})`;
+    if (TOD[m] && TOD[m].is_preliminary) {
+      const badge = document.createElement('span');
+      badge.className = 'sobо-badge'; badge.textContent = 'Sơ bộ';
+      lbl.appendChild(badge);
+    }
     row.appendChild(cb); row.appendChild(lbl);
     row.addEventListener('click', e => { if (e.target !== cb) cb.click(); });
     panel.appendChild(row);
   });
+}
+
+function updateTtSoboBanner() {
+  const prelimMonths = [...ttSelMonths].filter(m => TOD[m] && TOD[m].is_preliminary);
+  const el = document.getElementById('ttSoboBanner');
+  if (!el) return;
+  if (prelimMonths.length === 0) { el.style.display = 'none'; return; }
+  const names = prelimMonths.join(', ');
+  const dates = prelimMonths.map(m => TOD[m].updated_at).join(', ');
+  el.className = 'sobo-banner';
+  el.style.display = 'flex';
+  el.innerHTML = `⚠️ <strong>Dữ liệu sơ bộ:</strong> ${names} — cập nhật ${dates}, chưa loại trừ hết đơn hoàn hủy. Dữ liệu chính thức sau ngày 15 tháng sau.`;
 }
 
 function updateTtMonthBtn() {
