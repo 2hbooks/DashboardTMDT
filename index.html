@@ -1609,6 +1609,11 @@ renderAll();
     <div class="card-title">Xếp hạng Creator
       <small style="font-weight:400;color:var(--muted);font-size:11px;margin-left:6px">Bấm vào để xem SP</small>
     </div>
+    <div style="padding:0 0 8px 0">
+      <input id="ttKocSearch" type="text" placeholder="🔍 Tìm Creator..."
+        oninput="filterKocSearch(this.value)"
+        style="width:100%;box-sizing:border-box;padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;outline:none;color:var(--text)">
+    </div>
     <div style="overflow-x:auto;max-height:420px;overflow-y:auto;scrollbar-gutter:stable">
       <table class="rank-table" id="ttKocTable">
         <thead><tr>
@@ -1639,6 +1644,53 @@ renderAll();
           <th style="text-align:right">%</th>
         </tr></thead>
         <tbody id="ttKocProdBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Row 5: Sản phẩm Hot (KOC) -->
+<div class="section-title">🔥 Sản phẩm Hot (Tiếp thị liên kết)</div>
+<div class="charts-grid" style="align-items:start">
+  <!-- Left: Product ranking -->
+  <div class="card">
+    <div class="card-title">Xếp hạng Sản phẩm
+      <small style="font-weight:400;color:var(--muted);font-size:11px;margin-left:6px">Bấm để xem kênh phân phối</small>
+    </div>
+    <div style="padding:0 0 8px 0">
+      <input id="ttHotProdSearch" type="text" placeholder="🔍 Tìm sản phẩm..."
+        oninput="filterHotProdSearch(this.value)"
+        style="width:100%;box-sizing:border-box;padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;outline:none;color:var(--text)">
+    </div>
+    <div style="overflow-x:auto;max-height:420px;overflow-y:auto;scrollbar-gutter:stable">
+      <table class="rank-table" style="table-layout:fixed;width:100%">
+        <colgroup><col style="width:28px"><col><col style="width:38px"><col style="width:84px"><col style="width:46px"></colgroup>
+        <thead><tr>
+          <th>#</th><th>Sản phẩm</th>
+          <th style="text-align:right">SL</th>
+          <th style="text-align:right">DT</th>
+          <th style="text-align:right">%</th>
+        </tr></thead>
+        <tbody id="ttHotProdBody"></tbody>
+      </table>
+    </div>
+  </div>
+  <!-- Right: KOC channels for selected product -->
+  <div class="card">
+    <div class="card-title" style="display:flex;align-items:center;gap:8px">
+      🛒 Kênh phân phối: <span id="ttHotProdTitle" style="color:var(--primary)">Tất cả sản phẩm</span>
+      <button id="ttHotClearBtn" onclick="clearHotProdFilter()" style="display:none;padding:1px 8px;border-radius:10px;border:1px solid var(--border);background:#fff;color:var(--muted);font-size:11px;cursor:pointer;line-height:1.8">✕</button>
+    </div>
+    <div style="overflow-x:auto;max-height:420px;overflow-y:auto;scrollbar-gutter:stable">
+      <table class="rank-table" style="table-layout:fixed;width:100%">
+        <colgroup><col style="width:28px"><col><col style="width:44px"><col style="width:84px"><col style="width:46px"></colgroup>
+        <thead><tr>
+          <th>#</th><th>Creator</th>
+          <th style="text-align:right">Đơn</th>
+          <th style="text-align:right">DT</th>
+          <th style="text-align:right">%</th>
+        </tr></thead>
+        <tbody id="ttHotChanBody"></tbody>
       </table>
     </div>
   </div>
@@ -2052,16 +2104,21 @@ function renderTiktokReport() {
     <td style="text-align:right;font-weight:700">${fmtVND(kocRev)}</td>
     <td style="text-align:right">${(kocRev/(intRev+kocRev)*100).toFixed(1)}%</td>`;
 
-  // Reset selections and render product panels
+  // Reset selections và render product panels
   ttIntSelectedHandle = null;
   ttKocSelectedHandle = null;
+  // Re-apply search filter nếu đang có từ khóa
+  const _kocSrch = document.getElementById('ttKocSearch');
+  if (_kocSrch && _kocSrch.value) filterKocSearch(_kocSrch.value);
   renderInternalProducts();
   renderKocProducts();
+  renderHotProds();
 }
 
 // ── State for channel selection and filter
 let ttIntSelectedHandle = null;   // null = all internal channels
 let ttKocSelectedHandle = null;   // null = all KOC
+let ttHotSelectedProd   = null;   // null = all products (key = product name)
 let ttIntFilter = 'all';          // 'all' | 'live' | 'video'
 
 // ── Aggregate handle_products across selected months for given handles (array or null=all internal)
@@ -2181,12 +2238,124 @@ function selectKocHandle(handle, rowEl) {
   }
   renderKocProducts();
 }
+function filterKocSearch(q) {
+  const kw = q.trim().toLowerCase();
+  document.querySelectorAll('#ttKocBody tr').forEach(r => {
+    r.style.display = (!kw || (r.dataset.handle||'').toLowerCase().includes(kw)) ? '' : 'none';
+  });
+}
 function clearKocFilter() {
   ttKocSelectedHandle = null;
   document.getElementById('ttKocBody').querySelectorAll('tr').forEach(r => r.classList.remove('selected'));
   document.getElementById('ttKocProdTitle').textContent = 'Tất cả KOC';
   document.getElementById('ttKocClearBtn').style.display = 'none';
   renderKocProducts();
+}
+
+// ── Hot Products (KOC only) ──────────────────────────────────────────────────
+// Build product map: name → {n, qty, rev, handles: {handle: {qty, rev}}}
+function buildHotProdMap() {
+  const d = ttAgg();
+  const kocHandles = new Set(Object.keys(d.koc_map));
+  const prodMap = {};
+  for (const m of ttSelMonths) {
+    const hp = (TOD[m] && TOD[m].handle_products) || {};
+    for (const [handle, prods] of Object.entries(hp)) {
+      if (!kocHandles.has(handle)) continue;  // chỉ KOC, bỏ kênh nội bộ
+      for (const p of prods) {
+        const key = p.n;  // group by name
+        if (!prodMap[key]) prodMap[key] = {n: p.n, qty: 0, rev: 0, handles: {}};
+        prodMap[key].qty += p.qty;
+        prodMap[key].rev += p.rev;
+        if (!prodMap[key].handles[handle]) prodMap[key].handles[handle] = {qty: 0, rev: 0};
+        prodMap[key].handles[handle].qty += p.qty;
+        prodMap[key].handles[handle].rev += p.rev;
+      }
+    }
+  }
+  return prodMap;
+}
+
+function renderHotProds() {
+  const prodMap = buildHotProdMap();
+  const rows = Object.values(prodMap).sort((a,b) => b.rev - a.rev);
+  const totalRev = rows.reduce((s,p) => s + p.rev, 0) || 1;
+  document.getElementById('ttHotProdBody').innerHTML = rows.map((p, i) => `
+    <tr class="clickable-row${ttHotSelectedProd === p.n ? ' selected' : ''}"
+        data-prod="${p.n.replace(/"/g,'&quot;')}"
+        onclick="selectHotProd(this)">
+      <td><span class="rank-badge ${i<3?'rank-'+(i+1):'rank-n'}">${i+1}</span></td>
+      <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.n.replace(/"/g,'&quot;')}">${p.n}</td>
+      <td style="text-align:right">${p.qty.toLocaleString('vi-VN')}</td>
+      <td style="text-align:right;font-weight:700" title="${fmtVND(p.rev)}">${fmtCpt(p.rev)}</td>
+      <td style="text-align:right;color:var(--muted)">${(p.rev/totalRev*100).toFixed(1)}%</td>
+    </tr>`).join('');
+  renderHotChans();
+  const srch = document.getElementById('ttHotProdSearch');
+  if (srch && srch.value) filterHotProdSearch(srch.value);
+}
+
+function renderHotChans() {
+  const prodMap = buildHotProdMap();
+  let handles, totalRev;
+  if (ttHotSelectedProd && prodMap[ttHotSelectedProd]) {
+    const prod = prodMap[ttHotSelectedProd];
+    handles = Object.entries(prod.handles).sort((a,b) => b[1].rev - a[1].rev);
+    totalRev = prod.rev || 1;
+  } else {
+    // Tổng hợp tất cả handle × tất cả sản phẩm
+    const hMap = {};
+    Object.values(prodMap).forEach(p => {
+      Object.entries(p.handles).forEach(([h, v]) => {
+        if (!hMap[h]) hMap[h] = {qty: 0, rev: 0};
+        hMap[h].qty += v.qty;
+        hMap[h].rev += v.rev;
+      });
+    });
+    handles = Object.entries(hMap).sort((a,b) => b[1].rev - a[1].rev);
+    totalRev = handles.reduce((s,[,v]) => s + v.rev, 0) || 1;
+  }
+  document.getElementById('ttHotChanBody').innerHTML = handles.map(([h, v], i) => `
+    <tr>
+      <td><span class="rank-badge ${i<3?'rank-'+(i+1):'rank-n'}">${i+1}</span></td>
+      <td><span class="handle-tag">@${h||'(trống)'}</span></td>
+      <td style="text-align:right">${v.qty.toLocaleString('vi-VN')}</td>
+      <td style="text-align:right;font-weight:700" title="${fmtVND(v.rev)}">${fmtCpt(v.rev)}</td>
+      <td style="text-align:right;color:var(--muted)">${(v.rev/totalRev*100).toFixed(1)}%</td>
+    </tr>`).join('');
+}
+
+function selectHotProd(rowEl) {
+  const name = rowEl.dataset.prod;
+  document.querySelectorAll('#ttHotProdBody tr').forEach(r => r.classList.remove('selected'));
+  if (ttHotSelectedProd === name) {
+    ttHotSelectedProd = null;
+    document.getElementById('ttHotProdTitle').textContent = 'Tất cả sản phẩm';
+    document.getElementById('ttHotClearBtn').style.display = 'none';
+  } else {
+    ttHotSelectedProd = name;
+    rowEl.classList.add('selected');
+    const label = name.length > 35 ? name.substring(0,35)+'…' : name;
+    document.getElementById('ttHotProdTitle').textContent = label;
+    document.getElementById('ttHotClearBtn').style.display = '';
+  }
+  renderHotChans();
+}
+
+function clearHotProdFilter() {
+  ttHotSelectedProd = null;
+  document.querySelectorAll('#ttHotProdBody tr').forEach(r => r.classList.remove('selected'));
+  document.getElementById('ttHotProdTitle').textContent = 'Tất cả sản phẩm';
+  document.getElementById('ttHotClearBtn').style.display = 'none';
+  renderHotChans();
+}
+
+function filterHotProdSearch(q) {
+  const kw = q.trim().toLowerCase();
+  document.querySelectorAll('#ttHotProdBody tr').forEach(r => {
+    const name = (r.dataset.prod || '').toLowerCase();
+    r.style.display = (!kw || name.includes(kw)) ? '' : 'none';
+  });
 }
 
 // ── Live/Video filter for internal products
