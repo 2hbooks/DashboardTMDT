@@ -367,6 +367,51 @@
   </div>
 </div>
 
+<!-- Section 1c: Xếp hạng Nhà cung cấp -->
+<div class="section-title">🏭 Xếp hạng Nhà cung cấp</div>
+<div class="charts-grid" style="align-items:start">
+  <!-- Left: NCC ranking -->
+  <div class="card">
+    <div class="card-title">Doanh thu theo NCC
+      <small style="font-weight:400;color:var(--muted);font-size:11px;margin-left:6px">Bấm để xem danh mục</small>
+    </div>
+    <div style="padding:0 0 8px">
+      <input id="nccRankSearch" type="text" placeholder="🔍 Tìm nhà cung cấp..."
+        oninput="filterNccRankSearch(this.value)"
+        style="width:100%;box-sizing:border-box;padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;outline:none;color:var(--text)">
+    </div>
+    <div style="overflow-x:auto;max-height:420px;overflow-y:auto;scrollbar-gutter:stable">
+      <table class="rank-table" style="table-layout:fixed;width:100%">
+        <colgroup><col style="width:28px"><col><col style="width:90px"><col style="width:46px"></colgroup>
+        <thead><tr>
+          <th>#</th><th>Nhà cung cấp</th>
+          <th style="text-align:right">Doanh thu</th>
+          <th style="text-align:right">%</th>
+        </tr></thead>
+        <tbody id="nccRankBody"></tbody>
+      </table>
+    </div>
+  </div>
+  <!-- Right: Category breakdown -->
+  <div class="card">
+    <div class="card-title" style="display:flex;align-items:center;gap:8px">
+      📂 Danh mục: <span id="nccRankTitle" style="color:var(--primary)">Tất cả NCC</span>
+      <button id="nccRankClearBtn" onclick="clearNccRankFilter()" style="display:none;padding:1px 8px;border-radius:10px;border:1px solid var(--border);background:#fff;color:var(--muted);font-size:11px;cursor:pointer;line-height:1.8">✕</button>
+    </div>
+    <div style="overflow-x:auto;max-height:420px;overflow-y:auto;scrollbar-gutter:stable">
+      <table class="rank-table" style="table-layout:fixed;width:100%">
+        <colgroup><col style="width:28px"><col><col style="width:90px"><col style="width:46px"></colgroup>
+        <thead><tr>
+          <th>#</th><th>Ngành hàng</th>
+          <th style="text-align:right">Doanh thu</th>
+          <th style="text-align:right">%</th>
+        </tr></thead>
+        <tbody id="nccNganhBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <!-- Section 2: GV/DT ratio -->
 <div class="section-title">💰 Tỷ lệ Giá vốn / Doanh thu theo Nhà cung cấp</div>
 <div class="charts-grid">
@@ -1329,6 +1374,104 @@ document.getElementById('skuShowMore').addEventListener('click', () => {
   skuLimit += 30; buildSkuTable();
 });
 
+// ─── Xếp hạng Nhà cung cấp ───────────────────────────────────────────────────
+let selNccRank = null;
+
+function normNcc(nc) {
+  if (!nc) return 'Chưa có NCC';
+  if (/huy ho/i.test(nc)) return 'Huy Hoàng';
+  return nc;
+}
+
+function aggByNccNorm() {
+  const months = getMonths();
+  const out = {};
+  PRODUCT_DATA.forEach(p => {
+    if (!months.includes(p.mo))                       return;
+    if (selChannel !== 'all' && p.ch !== selChannel)  return;
+    if (selShop    !== 'all' && p.sh !== selShop)     return;
+    const ncc = normNcc(p.nc);
+    if (!out[ncc]) out[ncc] = {dt: 0, nganh: {}};
+    out[ncc].dt += p.dt;
+    const ng = p.ng || 'Chưa phân loại';
+    out[ncc].nganh[ng] = (out[ncc].nganh[ng] || 0) + p.dt;
+  });
+  return out;
+}
+
+function renderNccRank() {
+  const data = aggByNccNorm();
+  const rows = Object.entries(data).sort((a,b) => b[1].dt - a[1].dt);
+  const totalDt = rows.reduce((s,[,v]) => s + v.dt, 0) || 1;
+  document.getElementById('nccRankBody').innerHTML = rows.map(([name, v], i) => `
+    <tr class="clickable-row${selNccRank === name ? ' selected' : ''}"
+        data-ncc="${name.replace(/"/g,'&quot;')}"
+        onclick="selectNccRank(this)">
+      <td><span class="rank-badge ${i<3?'rank-'+(i+1):'rank-n'}">${i+1}</span></td>
+      <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${name.replace(/"/g,'&quot;')}">${name}</td>
+      <td style="text-align:right;font-weight:700" title="${fmtVND(v.dt)}">${fmtCpt(v.dt)}</td>
+      <td style="text-align:right;color:var(--muted)">${(v.dt/totalDt*100).toFixed(1)}%</td>
+    </tr>`).join('');
+  renderNccNganh();
+  const srch = document.getElementById('nccRankSearch');
+  if (srch && srch.value) filterNccRankSearch(srch.value);
+}
+
+function renderNccNganh() {
+  const data = aggByNccNorm();
+  let rows, totalDt;
+  if (selNccRank && data[selNccRank]) {
+    const nganh = data[selNccRank].nganh;
+    rows = Object.entries(nganh).sort((a,b) => b[1]-a[1]);
+    totalDt = data[selNccRank].dt || 1;
+  } else {
+    const ngMap = {};
+    Object.values(data).forEach(v => {
+      Object.entries(v.nganh).forEach(([ng, dt]) => { ngMap[ng] = (ngMap[ng]||0) + dt; });
+    });
+    rows = Object.entries(ngMap).sort((a,b) => b[1]-a[1]);
+    totalDt = rows.reduce((s,[,v]) => s+v, 0) || 1;
+  }
+  document.getElementById('nccNganhBody').innerHTML = rows.map(([ng, dt], i) => `
+    <tr>
+      <td><span class="rank-badge ${i<3?'rank-'+(i+1):'rank-n'}">${i+1}</span></td>
+      <td>${ng}</td>
+      <td style="text-align:right;font-weight:700" title="${fmtVND(dt)}">${fmtCpt(dt)}</td>
+      <td style="text-align:right;color:var(--muted)">${(dt/totalDt*100).toFixed(1)}%</td>
+    </tr>`).join('');
+}
+
+function selectNccRank(rowEl) {
+  const name = rowEl.dataset.ncc;
+  document.querySelectorAll('#nccRankBody tr').forEach(r => r.classList.remove('selected'));
+  if (selNccRank === name) {
+    selNccRank = null;
+    document.getElementById('nccRankTitle').textContent = 'Tất cả NCC';
+    document.getElementById('nccRankClearBtn').style.display = 'none';
+  } else {
+    selNccRank = name;
+    rowEl.classList.add('selected');
+    document.getElementById('nccRankTitle').textContent = name.length > 30 ? name.substring(0,30)+'…' : name;
+    document.getElementById('nccRankClearBtn').style.display = '';
+  }
+  renderNccNganh();
+}
+
+function clearNccRankFilter() {
+  selNccRank = null;
+  document.querySelectorAll('#nccRankBody tr').forEach(r => r.classList.remove('selected'));
+  document.getElementById('nccRankTitle').textContent = 'Tất cả NCC';
+  document.getElementById('nccRankClearBtn').style.display = 'none';
+  renderNccNganh();
+}
+
+function filterNccRankSearch(q) {
+  const kw = q.trim().toLowerCase();
+  document.querySelectorAll('#nccRankBody tr').forEach(r => {
+    r.style.display = (!kw || (r.dataset.ncc||'').toLowerCase().includes(kw)) ? '' : 'none';
+  });
+}
+
 // ─── Render all ───────────────────────────────────────────────────────────────
 function renderAll() {
   buildKPI();
@@ -1344,6 +1487,7 @@ function renderAll() {
   buildProductTable();
   skuLimit = 30;
   buildSkuTable();
+  renderNccRank();
   buildBarGvDt();
   buildShopTable();
   buildTrend();
