@@ -1809,7 +1809,22 @@ renderAll();
   </div>
 </div>
 
-<!-- Row 5: Sản phẩm Hot (KOC) -->
+<!-- Row 5: Tỷ trọng Ngành hàng theo kênh -->
+<div class="section-title">🥧 Tỷ trọng Ngành hàng theo kênh</div>
+<div class="charts-grid">
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:#1a56db"></span>Kênh nội bộ</div>
+    <div class="chart-wrap"><canvas id="ttPieNganhInt"></canvas></div>
+    <div class="legend-list" id="ttLegendNganhInt"></div>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:#f59e0b"></span>Tiếp thị liên kết (KOC)</div>
+    <div class="chart-wrap"><canvas id="ttPieNganhKoc"></canvas></div>
+    <div class="legend-list" id="ttLegendNganhKoc"></div>
+  </div>
+</div>
+
+<!-- Row 6: Sản phẩm Hot (KOC) -->
 <div class="section-title">🔥 Sản phẩm Hot (Tiếp thị liên kết)</div>
 <div class="charts-grid" style="align-items:start">
   <!-- Left: Product ranking -->
@@ -2040,6 +2055,71 @@ function ttChart(id, cfg) {
 }
 
 const TT_COLORS = ['#6366f1','#f59e0b','#10b981','#ef4444','#3b82f6','#8b5cf6','#ec4899','#14b8a6'];
+
+// ── SKU → Ngành map từ SKU_DATA (TikTok records)
+const _sku2ng = {};
+SKU_DATA.forEach(r => { if (r.ch === 'tiktok' && r.sku && r.ng) _sku2ng[r.sku] = r.ng; });
+
+function aggNganhByHandles(handles) {
+  const ngMap = {};
+  for (const m of ttSelMonths) {
+    const hp = (TOD[m] && TOD[m].handle_products) || {};
+    for (const h of handles) {
+      for (const p of (hp[h] || [])) {
+        const ng = _sku2ng[p.sku] || 'Khác';
+        ngMap[ng] = (ngMap[ng] || 0) + p.rev;
+      }
+    }
+  }
+  return ngMap;
+}
+
+function buildTtNganhPie(canvasId, legendId, ngMap) {
+  const entries = Object.entries(ngMap)
+    .filter(([,v]) => v > 0)
+    .sort((a,b) => b[1]-a[1]);
+  const total = entries.reduce((s,[,v]) => s+v, 0) || 1;
+  const labels = entries.map(([k]) => k);
+  const vals   = entries.map(([,v]) => v);
+  const colors = labels.map((_,i) => PALETTE[i % PALETTE.length]);
+
+  ttChart(canvasId, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: vals, backgroundColor: colors, borderWidth:2, borderColor:'#fff', hoverOffset:6 }] },
+    options: {
+      responsive:true, maintainAspectRatio:false, cutout:'58%',
+      layout: { padding: 32 },
+      plugins: {
+        datalabels: {
+          anchor:'end', align:'end', offset:6, clip:false, clamp:true,
+          display: ctx => ctx.dataset.data[ctx.dataIndex]/total >= 0.03,
+          formatter: (val, ctx) => ctx.chart.data.labels[ctx.dataIndex] + '\n' + (val/total*100).toFixed(1)+'%',
+          color: ctx => colors[ctx.dataIndex % colors.length],
+          font: { size:11, weight:'700', lineHeight:1.35 }, textAlign:'center'
+        },
+        legend: { display:false },
+        tooltip: { callbacks: { label: ctx => ' ' + ctx.chart.data.labels[ctx.dataIndex] + ': ' + fmtVND(ctx.raw) + ' (' + (ctx.raw/total*100).toFixed(1)+'%)' }}
+      }
+    }
+  });
+
+  // Legend
+  document.getElementById(legendId).innerHTML = entries.map(([ng,v],i) => `
+    <div class="legend-item">
+      <span class="legend-dot" style="background:${colors[i]}"></span>
+      <span>${ng}</span>
+      <span class="legend-val">${(v/total*100).toFixed(1)}%</span>
+    </div>`).join('');
+}
+
+function buildTtNganhCharts() {
+  const d = ttAgg();
+  if (!d) return;
+  const intHandles = Object.keys(d.internal_channels);
+  const kocHandles = Object.keys(d.koc_map);
+  buildTtNganhPie('ttPieNganhInt', 'ttLegendNganhInt', aggNganhByHandles(intHandles));
+  buildTtNganhPie('ttPieNganhKoc', 'ttLegendNganhKoc', aggNganhByHandles(kocHandles));
+}
 
 // ── Toggle discount detail panel
 function toggleDiscDetail() {
@@ -2272,6 +2352,7 @@ function renderTiktokReport() {
   if (_kocSrch && _kocSrch.value) filterKocSearch(_kocSrch.value);
   renderInternalProducts();
   renderKocProducts();
+  buildTtNganhCharts();
   renderHotProds();
 }
 
