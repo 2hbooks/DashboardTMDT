@@ -178,40 +178,114 @@
 <body>
 
 <!-- ── Password Gate ─────────────────────────────────────────────────────── -->
-<div id="pwGate" style="position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 60%,#0f3460 100%);display:flex;align-items:center;justify-content:center;">
-  <div style="background:#fff;border-radius:16px;padding:40px 36px;width:340px;box-shadow:0 20px 60px rgba(0,0,0,.4);text-align:center;">
-    <div style="font-size:32px;margin-bottom:8px;">📊</div>
-    <div style="font-size:18px;font-weight:700;color:#111827;margin-bottom:4px;">Dashboard TMDT 2026</div>
-    <div style="font-size:13px;color:#6b7280;margin-bottom:28px;">2H Books · Nội bộ</div>
+<div id="pwGate" style="position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 60%,#0f3460 100%);display:flex;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#fff;border-radius:20px;padding:40px 36px;width:400px;max-width:100%;box-shadow:0 24px 80px rgba(0,0,0,.5);text-align:center;">
+
+    <!-- Logo 2H -->
+    <img src="output.lin (7).jpg" alt="2H Books" style="width:200px;margin-bottom:18px;display:block;margin-left:auto;margin-right:auto;">
+
+    <div style="font-size:19px;font-weight:700;color:#111827;margin-bottom:22px;">Dashboard TMDT 2026</div>
+
+    <!-- Random quote -->
+    <div id="pwQuote" style="font-size:12px;color:#4b5563;line-height:1.65;margin-bottom:24px;padding:12px 14px;background:#f8faff;border-radius:10px;border-left:3px solid #1a56db;text-align:left;white-space:pre-line;font-style:italic;"></div>
+
     <input id="pwInput" type="password" placeholder="Nhập mật khẩu…"
-      style="width:100%;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;outline:none;margin-bottom:12px;transition:border .2s;"
+      style="width:100%;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;outline:none;margin-bottom:12px;transition:border .2s;color:#111827;"
       onkeydown="if(event.key==='Enter')checkPw()"
       onfocus="this.style.borderColor='#1a56db'"
       onblur="this.style.borderColor='#e5e7eb'" />
     <div id="pwErr" style="font-size:12px;color:#dc2626;margin-bottom:10px;min-height:16px;"></div>
     <button onclick="checkPw()"
-      style="width:100%;padding:10px;background:#1a56db;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">
+      style="width:100%;padding:11px;background:linear-gradient(135deg,#1a56db,#0f3460);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;letter-spacing:.03em;transition:.2s;"
+      onmouseover="this.style.opacity='.88'"
+      onmouseout="this.style.opacity='1'">
       Đăng nhập
     </button>
   </div>
 </div>
 
 <script>
+// Random quote on login screen
 (function(){
-  const PW = '110d';
-  if(sessionStorage.getItem('auth2h')==='ok'){
-    document.getElementById('pwGate').style.display='none';
+  const QUOTES = [
+    'Bạn không cần phát minh ra một cái mới, không cần phải làm những điều lớn lao.\nHãy làm những điều bình thường nhưng theo một cách phi thường nhất.',
+    'Work hard · Smart · Think different.',
+    'Mỗi buổi sáng ở Châu Phi có một con hươu thức dậy, nó phải chạy nhanh hơn con sư tử nhanh nhất nếu không nó sẽ bị ăn thịt.\n\nMỗi buổi sáng cũng có một con sư tử thức dậy, nó phải chạy nhanh hơn con hươu chậm nhất nếu không nó sẽ chết đói.\n\nĐiều quan trọng không phải bạn là hươu hay sư tử — khi mặt trời lên, hãy bắt đầu chạy.',
+    'Không thể đạt được kết quả mới nếu vẫn làm theo cách cũ.',
+    'Kaizen - Cải tiến liên tục.',
+    'Agile – Quality-first – Reliable\n\nAGILE – Nhanh nhạy & linh hoạt\nQUALITY-FIRST – Ưu tiên chất lượng\nRELIABLE – Đáng tin cậy',
+  ];
+  const el = document.getElementById('pwQuote');
+  if (el) el.textContent = QUOTES[Math.floor(Math.random() * QUOTES.length)];
+})();
+</script>
+
+<script>
+// ── Auth Config ──────────────────────────────────────────────────
+// Thay đổi mật khẩu tại đây. Không chia sẻ file này ra ngoài.
+const _AUTH = {
+  '110d':      ['overview'],             // Chỉ xem Dashboard Tổng quát
+  'tiktok01':  ['tiktok'],              // Chỉ xem Dashboard TikTok
+  'quanly01':  ['overview', 'tiktok'],   // Quản lý – Xem tất cả
+};
+// ─────────────────────────────────────────────────────────────────
+
+(function(){
+  function applyPerms(perms) {
+    const hasOverview = perms.includes('overview');
+    const hasTiktok   = perms.includes('tiktok');
+    const tabMain   = document.getElementById('tabMain');
+    const tabTiktok = document.getElementById('tabTiktok');
+    if (tabMain)   tabMain.style.display   = hasOverview ? '' : 'none';
+    if (tabTiktok) tabTiktok.style.display = hasTiktok   ? '' : 'none';
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) logoutBtn.style.display = '';
+    // Auto-navigate to the first permitted tab
+    if (!hasOverview && hasTiktok) {
+      if (typeof switchTab === 'function') switchTab('tiktok');
+      else setTimeout(() => { if (typeof switchTab === 'function') switchTab('tiktok'); }, 0);
+    }
   }
-  window.checkPw = function(){
-    const v = document.getElementById('pwInput').value;
-    if(v === PW){
-      sessionStorage.setItem('auth2h','ok');
-      document.getElementById('pwGate').style.display='none';
+
+  // Restore session
+  const saved = sessionStorage.getItem('auth2h_perms');
+  if (saved) {
+    try {
+      const perms = JSON.parse(saved);
+      document.getElementById('pwGate').style.display = 'none';
+      applyPerms(perms);
+    } catch(e) { sessionStorage.removeItem('auth2h_perms'); }
+  }
+
+  window.checkPw = function() {
+    const v = document.getElementById('pwInput').value.trim();
+    const perms = _AUTH[v];
+    if (perms) {
+      sessionStorage.setItem('auth2h_perms', JSON.stringify(perms));
+      document.getElementById('pwGate').style.display = 'none';
+      document.getElementById('pwErr').textContent = '';
+      applyPerms(perms);
     } else {
-      document.getElementById('pwErr').textContent='Mật khẩu không đúng, thử lại.';
-      document.getElementById('pwInput').value='';
+      document.getElementById('pwErr').textContent = 'Mật khẩu không đúng, thử lại.';
+      document.getElementById('pwInput').value = '';
       document.getElementById('pwInput').focus();
     }
+  };
+
+  window.doLogout = function() {
+    sessionStorage.removeItem('auth2h_perms');
+    document.getElementById('pwInput').value = '';
+    document.getElementById('pwErr').textContent = '';
+    document.getElementById('pwGate').style.display = 'flex';
+    // Restore both tabs visibility for next login
+    const tabMain   = document.getElementById('tabMain');
+    const tabTiktok = document.getElementById('tabTiktok');
+    if (tabMain)   tabMain.style.display   = '';
+    if (tabTiktok) tabTiktok.style.display = '';
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) logoutBtn.style.display = 'none';
+    // Return to main tab
+    if (typeof switchTab === 'function') switchTab('main');
   };
 })();
 </script>
@@ -221,9 +295,13 @@
     <h1>📊 Dashboard Sàn TMDT 2026</h1>
     <div class="sub" id="headerSub">2H Books – Đang tải…</div>
   </div>
-  <div style="margin-left:auto;display:flex;gap:8px;">
+  <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
     <span class="badge badge-shopee">Shopee</span>
     <span class="badge badge-tiktok">TikTok</span>
+    <button id="logoutBtn" onclick="doLogout()" title="Đăng xuất"
+      style="display:none;margin-left:8px;padding:5px 12px;background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:6px;font-size:12px;cursor:pointer;transition:.2s;"
+      onmouseover="this.style.background='rgba(255,255,255,0.25)'"
+      onmouseout="this.style.background='rgba(255,255,255,0.15)'">🔓 Đăng xuất</button>
   </div>
 </div>
 
@@ -1900,6 +1978,12 @@ let ttCharts = {};
 
 // ── Switch tab
 function switchTab(tab) {
+  // Guard: check permission before switching
+  const _saved = sessionStorage.getItem('auth2h_perms');
+  let _perms = [];
+  try { _perms = _saved ? JSON.parse(_saved) : []; } catch(e) {}
+  if (tab === 'tiktok'  && !_perms.includes('tiktok'))   return;
+  if (tab === 'main'    && !_perms.includes('overview'))  return;
   document.getElementById('viewMain').style.display    = tab === 'main'   ? '' : 'none';
   document.getElementById('viewTiktok').style.display  = tab === 'tiktok' ? '' : 'none';
   document.getElementById('tabMain').classList.toggle('active',   tab === 'main');
@@ -2103,13 +2187,30 @@ function buildTtNganhPie(canvasId, legendId, ngMap) {
     }
   });
 
-  // Legend
-  document.getElementById(legendId).innerHTML = entries.map(([ng,v],i) => `
-    <div class="legend-item">
-      <span class="legend-dot" style="background:${colors[i]}"></span>
-      <span>${ng}</span>
-      <span class="legend-val">${(v/total*100).toFixed(1)}%</span>
-    </div>`).join('');
+  // Legend — table 3 cột: Ngành hàng | Doanh thu | Tỷ trọng
+  document.getElementById(legendId).innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:12px">
+      <thead>
+        <tr style="color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em;border-bottom:2px solid var(--border)">
+          <th style="text-align:left;padding:4px 6px;font-weight:600">Ngành hàng</th>
+          <th style="text-align:right;padding:4px 6px;font-weight:600">Doanh thu</th>
+          <th style="text-align:right;padding:4px 6px;font-weight:600;width:52px">%</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${entries.map(([ng,v],i) => `
+        <tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:5px 6px">
+            <span style="display:inline-flex;align-items:center;gap:6px">
+              <span style="width:10px;height:10px;border-radius:50%;background:${colors[i]};display:inline-block;flex-shrink:0"></span>
+              ${ng}
+            </span>
+          </td>
+          <td style="text-align:right;padding:5px 6px;font-weight:600;white-space:nowrap">${fmtVND(v)}</td>
+          <td style="text-align:right;padding:5px 6px;color:var(--muted)">${(v/total*100).toFixed(1)}%</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
 }
 
 function buildTtNganhCharts() {
