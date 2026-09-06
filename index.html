@@ -2652,11 +2652,13 @@ function aggregateHandleProducts(handles) {
     for (const h of targetHandles) {
       for (const p of (hp[h] || [])) {
         const k = p.n;  // group by name to merge variants
-        if (!prodMap[k]) prodMap[k] = { n: p.n, qty: 0, rev: 0, rl: 0, rv: 0 };
+        if (!prodMap[k]) prodMap[k] = { n: p.n, qty: 0, rev: 0, rl: 0, rv: 0, ql: 0, qv: 0 };
         prodMap[k].qty += p.qty;
         prodMap[k].rev += p.rev;
         prodMap[k].rl  += (p.rl || 0);
         prodMap[k].rv  += (p.rv || 0);
+        prodMap[k].ql  += (p.ql || 0);
+        prodMap[k].qv  += (p.qv || 0);
       }
     }
   }
@@ -2687,6 +2689,7 @@ function aggregateKocProducts(handles) {
 function renderInternalProducts() {
   const prods = aggregateHandleProducts(ttIntSelectedHandle ? [ttIntSelectedHandle] : null);
   const revKey = ttIntFilter === 'live' ? 'rl' : ttIntFilter === 'video' ? 'rv' : 'rev';
+  const qtyKey = ttIntFilter === 'live' ? 'ql' : ttIntFilter === 'video' ? 'qv' : 'qty';
   const sorted = prods.filter(p => p[revKey] > 0).sort((a,b) => b[revKey]-a[revKey]);
   const total  = sorted.reduce((s,p) => s+p[revKey], 0) || 1;
   const revLabel = ttIntFilter === 'live' ? 'DT Live' : ttIntFilter === 'video' ? 'DT Video' : 'Doanh thu';
@@ -2695,7 +2698,7 @@ function renderInternalProducts() {
     ? sorted.map((p,i) => `<tr>
         <td><span class="rank-badge ${i<3?'rank-'+(i+1):'rank-n'}">${i+1}</span></td>
         <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.n.replace(/"/g,'&quot;')}">${p.n}</td>
-        <td style="text-align:right;white-space:nowrap">${p.qty.toLocaleString('vi-VN')}</td>
+        <td style="text-align:right;white-space:nowrap">${(p[qtyKey]||0).toLocaleString('vi-VN')}</td>
         <td style="text-align:right;font-weight:700;white-space:nowrap" title="${fmtVND(p[revKey])}">${fmtCpt(p[revKey])}</td>
         <td style="text-align:right;color:var(--muted);white-space:nowrap">${(p[revKey]/total*100).toFixed(1)}%</td>
       </tr>`).join('')
