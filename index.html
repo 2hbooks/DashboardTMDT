@@ -460,11 +460,12 @@ const _AUTH = {
     </div>
     <div style="overflow-x:auto;max-height:420px;overflow-y:auto;scrollbar-gutter:stable">
       <table class="rank-table" style="table-layout:fixed;width:100%">
-        <colgroup><col style="width:28px"><col><col style="width:130px"><col style="width:46px"></colgroup>
+        <colgroup><col style="width:28px"><col><col style="width:130px"><col style="width:46px"><col style="width:72px"></colgroup>
         <thead><tr>
           <th>#</th><th>Nhà cung cấp</th>
           <th style="text-align:right">Doanh thu</th>
           <th style="text-align:right">%</th>
+          <th style="text-align:right">vs T.trước</th>
         </tr></thead>
         <tbody id="nccRankBody"></tbody>
       </table>
@@ -478,11 +479,12 @@ const _AUTH = {
     </div>
     <div style="overflow-x:auto;max-height:420px;overflow-y:auto;scrollbar-gutter:stable">
       <table class="rank-table" style="table-layout:fixed;width:100%">
-        <colgroup><col style="width:28px"><col><col style="width:130px"><col style="width:46px"></colgroup>
+        <colgroup><col style="width:28px"><col><col style="width:130px"><col style="width:46px"><col style="width:72px"></colgroup>
         <thead><tr>
           <th>#</th><th>Ngành hàng</th>
           <th style="text-align:right">Doanh thu</th>
           <th style="text-align:right">%</th>
+          <th style="text-align:right">vs T.trước</th>
         </tr></thead>
         <tbody id="nccNganhBody"></tbody>
       </table>
@@ -505,10 +507,42 @@ const _AUTH = {
   <div class="card" style="grid-column:1/-1">
     <div class="card-title">Bảng DT & GV/DT theo shop</div>
     <table class="shop-table" id="shopTable">
-      <thead><tr>
-        <th>Shop</th><th>Kênh</th><th>Doanh thu</th><th>Chi phí QC</th><th>ACOS</th><th>Giá vốn</th><th>GV/DT</th>
-        <th class="bar-cell">Tỷ trọng DT</th>
-      </tr></thead>
+      <colgroup>
+        <col><!-- Shop -->
+        <col style="width:72px"><!-- Kênh -->
+        <col style="width:140px"><!-- Doanh thu -->
+        <col style="width:72px"><!-- vs DT -->
+        <col style="width:100px"><!-- Tỷ trọng DT -->
+        <col style="width:120px"><!-- CPQC -->
+        <col style="width:58px"><!-- ACOS -->
+        <col style="width:68px"><!-- vs ACOS -->
+        <col style="width:130px"><!-- Giá vốn -->
+        <col style="width:58px"><!-- GV/DT -->
+        <col style="width:68px"><!-- vs GV/DT -->
+      </colgroup>
+      <thead>
+        <!-- Group headers -->
+        <tr style="background:#f9fafb;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">
+          <th colspan="2" style="border-bottom:1px solid var(--border)"></th>
+          <th colspan="3" style="text-align:center;border-left:2px solid #dbeafe;background:#eff6ff;color:#1d4ed8;border-bottom:1px solid var(--border)">💰 Doanh thu</th>
+          <th colspan="3" style="text-align:center;border-left:2px solid #fef3c7;background:#fffbeb;color:#92400e;border-bottom:1px solid var(--border)">📢 Chi phí QC</th>
+          <th colspan="3" style="text-align:center;border-left:2px solid #d1fae5;background:#ecfdf5;color:#065f46;border-bottom:1px solid var(--border)">📦 Giá vốn</th>
+        </tr>
+        <!-- Column headers -->
+        <tr>
+          <th>Shop</th>
+          <th>Kênh</th>
+          <th style="border-left:2px solid #dbeafe">Doanh thu</th>
+          <th style="text-align:right;font-size:11px;color:#9ca3af">vs T.trước</th>
+          <th class="bar-cell">Tỷ trọng DT</th>
+          <th style="border-left:2px solid #fef3c7">Chi phí QC</th>
+          <th>ACOS</th>
+          <th style="text-align:right;font-size:11px;color:#9ca3af">vs T.trước</th>
+          <th style="border-left:2px solid #d1fae5">Giá vốn</th>
+          <th>GV/DT</th>
+          <th style="text-align:right;font-size:11px;color:#9ca3af">vs T.trước</th>
+        </tr>
+      </thead>
       <tbody id="shopTableBody"></tbody>
     </table>
   </div>
@@ -953,38 +987,87 @@ function buildBarGvDt() {
 }
 
 function buildShopTable() {
+  const months  = getMonths();
+  const allM    = D.months;
+  const firstIdx = allM.indexOf(months[0]);
+  const prevMonths = (firstIdx >= months.length)
+    ? allM.slice(firstIdx - months.length, firstIdx) : [];
+
   const shops  = aggByShop();
-  const months = getMonths();
   const maxDT  = shops.reduce((m,s)=>Math.max(m,s.dt),0);
   const totDT  = shops.reduce((s,x)=>s+x.dt,0);
   const tbody  = document.getElementById('shopTableBody');
   tbody.innerHTML = '';
 
+  // Pre-calc prev period per shop
+  const prevMap = {};
+  if (prevMonths.length) {
+    const channels = selChannel === 'all' ? ['shopee','tiktok'] :
+                     selChannel === 'shopee' ? ['shopee'] : ['tiktok'];
+    channels.forEach(ch => {
+      const shopList = ch === 'shopee' ? D.shopee_shops : D.tiktok_shops;
+      shopList.forEach(shop => {
+        if (selShop !== 'all' && shop !== selShop) return;
+        let pdt=0, pgv=0, pqc=0;
+        prevMonths.forEach(m => {
+          const md = D.data[ch]?.[shop]?.[m] || {};
+          Object.values(md).forEach(v => { pdt+=v.dt; pgv+=v.gv; });
+          pqc += D.ad_cost?.[ch]?.[shop]?.[m] || 0;
+        });
+        prevMap[shop] = {dt:pdt, gv:pgv, qc:pqc};
+      });
+    });
+  }
+
+  // Badge helpers (inline)
+  const growBadge = (cur, prev) => {
+    if (!prev || !cur) return '<td style="color:var(--muted);font-size:11px;text-align:right">—</td>';
+    const d = (cur-prev)/prev*100;
+    const up = d>=0, color = up?'#059669':'#dc2626', arrow = up?'▲':'▼';
+    return `<td style="text-align:right;font-size:11px;font-weight:700;color:${color}">${arrow} ${up?'+':''}${d.toFixed(1)}%</td>`;
+  };
+  const ratioBadge = (cur, prev) => {
+    if (prev===null||prev===undefined||!cur) return '<td style="color:var(--muted);font-size:11px;text-align:right">—</td>';
+    const d = cur-prev;
+    const up = d>0, color = up?'#dc2626':'#059669', arrow = up?'▲':'▼';
+    const sign = up?'+':'';
+    return `<td style="text-align:right;font-size:11px;font-weight:700;color:${color}">${arrow} ${sign}${d.toFixed(1)}pp</td>`;
+  };
+
   shops.forEach(({shop,ch,dt,gv}) => {
-    // Chi phí QC theo shop × tháng
     let qc = 0;
     months.forEach(m => { qc += D.ad_cost?.[ch]?.[shop]?.[m] || 0; });
 
-    const ratio = dt ? gv/dt : 0;
-    const acos  = dt ? qc/dt : 0;
+    const ratio = dt ? gv/dt*100 : 0;
+    const acos  = dt ? qc/dt*100 : 0;
     const pctBar = maxDT ? dt/maxDT*100 : 0;
-    const ratioColor = ratio < 0.45 ? '#10b981' : ratio < 0.60 ? '#f97316' : '#ef4444';
-    const acosColor  = acos  < 0.10 ? '#10b981' : acos  < 0.20 ? '#f97316' : '#ef4444';
+    const ratioColor = ratio < 45 ? '#10b981' : ratio < 60 ? '#f97316' : '#ef4444';
+    const acosColor  = acos  < 10 ? '#10b981' : acos  < 20 ? '#f97316' : '#ef4444';
     const barColor   = ch === 'shopee' ? '#ee4d2d' : '#333';
 
+    const p = prevMap[shop];
+    const prevRatio = p?.dt ? p.gv/p.dt*100 : null;
+    const prevAcos  = p?.dt ? p.qc/p.dt*100 : null;
+
     const tr = document.createElement('tr');
+    const SEP_DT  = 'border-left:2px solid #dbeafe';
+    const SEP_QC  = 'border-left:2px solid #fef3c7';
+    const SEP_GV  = 'border-left:2px solid #d1fae5';
     tr.innerHTML = `
       <td style="font-weight:600">${shop}</td>
       <td><span class="badge badge-${ch === 'shopee' ? 'shopee' : 'tiktok'}">${ch === 'shopee' ? 'Shopee' : 'TikTok'}</span></td>
-      <td style="font-weight:600">${fmtVND(dt)}</td>
-      <td>${qc > 0 ? fmtVND(qc) : '—'}</td>
-      <td style="font-weight:700;color:${acosColor}">${qc > 0 && dt > 0 ? (acos*100).toFixed(1)+'%' : '—'}</td>
-      <td>${fmtVND(gv)}</td>
-      <td style="font-weight:700;color:${ratioColor}">${pct(gv,dt)}</td>
+      <td style="font-weight:600;${SEP_DT}">${fmtVND(dt)}</td>
+      ${growBadge(dt, p?.dt)}
       <td class="bar-cell">
         <div class="bar-bg"><div class="bar-fill" style="width:${pctBar.toFixed(1)}%;background:${barColor}"></div></div>
         <div style="font-size:11px;color:#9ca3af;margin-top:2px">${pct(dt,totDT)}</div>
-      </td>`;
+      </td>
+      <td style="${SEP_QC}">${qc > 0 ? fmtVND(qc) : '—'}</td>
+      <td style="font-weight:700;color:${acosColor}">${qc > 0 && dt > 0 ? acos.toFixed(1)+'%' : '—'}</td>
+      ${ratioBadge(dt>0?acos:null, prevAcos)}
+      <td style="${SEP_GV}">${fmtVND(gv)}</td>
+      <td style="font-weight:700;color:${ratioColor}">${pct(gv,dt)}</td>
+      ${ratioBadge(dt>0?ratio:null, prevRatio)}`;
     tbody.appendChild(tr);
   });
 }
@@ -1065,53 +1148,104 @@ function aggAdCost() {
   return total;
 }
 
-function buildKPI() {
-  const months = getMonths();
-  let shDT=0, shGV=0, ttDT=0, ttGV=0;
-
+// ── Helper: tính DT/GV cho một danh sách tháng ──────────────────
+function aggForMonths(monthList) {
+  let shDT=0, shGV=0, ttDT=0, ttGV=0, qc=0;
   D.shopee_shops.forEach(shop => {
     if (selShop !== 'all' && shop !== selShop) return;
-    months.forEach(m => {
+    monthList.forEach(m => {
       const md = D.data.shopee?.[shop]?.[m] || {};
       Object.values(md).forEach(v => { shDT+=v.dt; shGV+=v.gv; });
+      if (selChannel !== 'tiktok') qc += D.ad_cost?.shopee?.[shop]?.[m] || 0;
     });
   });
   D.tiktok_shops.forEach(shop => {
     if (selShop !== 'all' && shop !== selShop) return;
-    months.forEach(m => {
+    monthList.forEach(m => {
       const md = D.data.tiktok?.[shop]?.[m] || {};
       Object.values(md).forEach(v => { ttDT+=v.dt; ttGV+=v.gv; });
+      if (selChannel !== 'shopee') qc += D.ad_cost?.tiktok?.[shop]?.[m] || 0;
     });
   });
-
   if (selChannel === 'shopee') { ttDT=0; ttGV=0; }
   if (selChannel === 'tiktok') { shDT=0; shGV=0; }
+  return { shDT, shGV, ttDT, ttGV, qc };
+}
 
-  const totDT = shDT + ttDT;
-  const totGV = shGV + ttGV;
-  const totQC = aggAdCost();
+// ── Helper: badge tăng trưởng DT (tăng = tốt = xanh) ─────────────
+function dtBadge(cur, prev) {
+  if (!prev || !cur) return '';
+  const d = (cur - prev) / prev * 100;
+  const up = d >= 0;
+  const color = up ? '#059669' : '#dc2626';
+  const arrow = up ? '▲' : '▼';
+  return `<span style="font-size:11px;font-weight:700;color:${color};margin-left:6px">${arrow} ${up?'+':''}${d.toFixed(1)}%</span>`;
+}
+
+// ── Helper: badge thay đổi tỷ lệ % (tăng = xấu = đỏ, giảm = tốt = xanh) ──
+function ratioBadge(curRatio, prevRatio) {
+  if (!prevRatio || curRatio === null) return '';
+  const d = curRatio - prevRatio; // percentage points
+  const up = d > 0;
+  const color = up ? '#dc2626' : '#059669';
+  const arrow = up ? '▲' : '▼';
+  const sign = up ? '+' : '';
+  return `<span style="font-size:11px;font-weight:700;color:${color};margin-left:4px">${arrow} ${sign}${d.toFixed(1)}pp</span>`;
+}
+
+function buildKPI() {
+  const months = getMonths();
+
+  // Tìm tháng liền trước (cùng số lượng tháng)
+  const allM = D.months;
+  const firstIdx = allM.indexOf(months[0]);
+  const prevMonths = (firstIdx >= months.length)
+    ? allM.slice(firstIdx - months.length, firstIdx)
+    : [];
+
+  const cur  = aggForMonths(months);
+  const prev = prevMonths.length ? aggForMonths(prevMonths) : null;
+
+  const totDT = cur.shDT + cur.ttDT;
+  const totGV = cur.shGV + cur.ttGV;
+  const totQC = cur.qc;
   const acos  = totDT ? totQC / totDT : 0;
   const acosColor = acos < 0.10 ? '#059669' : acos < 0.20 ? '#d97706' : '#dc2626';
 
+  // Prev period values
+  const prevTotDT = prev ? prev.shDT + prev.ttDT : 0;
+  const prevTotGV = prev ? prev.shGV + prev.ttGV : 0;
+  const prevTotQC = prev ? prev.qc : 0;
+  const prevGvRatio = prevTotDT ? prevTotGV / prevTotDT * 100 : null;
+  const prevAcos    = prevTotDT ? prevTotQC / prevTotDT * 100 : null;
+
+  const curGvRatio  = totDT ? totGV / totDT * 100 : null;
+  const curAcos     = totDT ? acos * 100 : null;
+
   const kpis = [];
-  // Tổng DT chỉ hiện khi xem tất cả kênh (tránh trùng với Shopee/TikTok)
   if (selChannel === 'all')
-    kpis.push({ label:'Tổng Doanh thu', value:fmtVND(totDT), sub:'GV/DT: '+pct(totGV,totDT), cls:'total' });
-  // Shopee/TikTok: chỉ hiện khi có doanh thu (> 0)
-  if (shDT > 0)
-    kpis.push({ label:'Shopee', value:fmtVND(shDT),
-      sub:'GV/DT: '+pct(shGV,shDT)+(selChannel==='all'?' · '+pct(shDT,totDT||1)+' tổng':''), cls:'shopee' });
-  if (ttDT > 0)
-    kpis.push({ label:'TikTok', value:fmtVND(ttDT),
-      sub:'GV/DT: '+pct(ttGV,ttDT)+(selChannel==='all'?' · '+pct(ttDT,totDT||1)+' tổng':''), cls:'tiktok' });
-  kpis.push({ label:'Tổng Giá vốn', value:fmtVND(totGV), sub:'GV/DT: '+pct(totGV,totDT), cls:'total' });
+    kpis.push({ label:'Tổng Doanh thu', value:fmtVND(totDT),
+      badge: dtBadge(totDT, prevTotDT),
+      sub:'GV/DT: '+pct(totGV,totDT), cls:'total' });
+  if (cur.shDT > 0)
+    kpis.push({ label:'Shopee', value:fmtVND(cur.shDT),
+      badge: dtBadge(cur.shDT, prev?.shDT),
+      sub:'GV/DT: '+pct(cur.shGV,cur.shDT)+(selChannel==='all'?' · '+pct(cur.shDT,totDT||1)+' tổng':''), cls:'shopee' });
+  if (cur.ttDT > 0)
+    kpis.push({ label:'TikTok', value:fmtVND(cur.ttDT),
+      badge: dtBadge(cur.ttDT, prev?.ttDT),
+      sub:'GV/DT: '+pct(cur.ttGV,cur.ttDT)+(selChannel==='all'?' · '+pct(cur.ttDT,totDT||1)+' tổng':''), cls:'tiktok' });
+  kpis.push({ label:'Tổng Giá vốn', value:fmtVND(totGV),
+    badge: ratioBadge(curGvRatio, prevGvRatio),
+    sub:'GV/DT: <b>'+pct(totGV,totDT)+'</b>'+(prevGvRatio!==null?' (T.trước: '+prevGvRatio.toFixed(1)+'%)':''), cls:'total' });
   kpis.push({ label:'Chi phí quảng cáo', value:fmtVND(totQC),
-    sub:'ACOS: <span style="font-weight:700;color:'+acosColor+'">'+(totDT?(acos*100).toFixed(1)+'%':'—')+'</span>', cls:'total' });
+    badge: ratioBadge(curAcos, prevAcos),
+    sub:'ACOS: <span style="font-weight:700;color:'+acosColor+'">'+(totDT?curAcos.toFixed(1)+'%':'—')+'</span>'+(prevAcos!==null?' <span style="color:var(--muted)">(T.trước: '+prevAcos.toFixed(1)+'%)</span>':''), cls:'total' });
 
   document.getElementById('kpiRow').innerHTML = kpis.map(k=>`
     <div class="kpi ${k.cls}">
       <div class="label">${k.label}</div>
-      <div class="value">${k.value}</div>
+      <div class="value" style="display:flex;align-items:baseline;flex-wrap:wrap;gap:2px">${k.value}${k.badge||''}</div>
       <div class="sub">${k.sub}</div>
     </div>`).join('');
 }
@@ -1461,8 +1595,8 @@ function normNcc(nc) {
   return nc;
 }
 
-function aggByNccNorm() {
-  const months = getMonths();
+function aggByNccNorm(monthList) {
+  const months = monthList || getMonths();
   const out = {};
   PRODUCT_DATA.forEach(p => {
     if (!months.includes(p.mo))                       return;
@@ -1478,10 +1612,29 @@ function aggByNccNorm() {
 }
 
 function renderNccRank() {
-  const data = aggByNccNorm();
+  const months  = getMonths();
+  const allM    = D.months;
+  const firstIdx = allM.indexOf(months[0]);
+  const prevMonths = (firstIdx >= months.length)
+    ? allM.slice(firstIdx - months.length, firstIdx) : [];
+
+  const data     = aggByNccNorm(months);
+  const prevData = prevMonths.length ? aggByNccNorm(prevMonths) : {};
+
   const rows = Object.entries(data).sort((a,b) => b[1].dt - a[1].dt);
   const totalDt = rows.reduce((s,[,v]) => s + v.dt, 0) || 1;
-  document.getElementById('nccRankBody').innerHTML = rows.map(([name, v], i) => `
+
+  document.getElementById('nccRankBody').innerHTML = rows.map(([name, v], i) => {
+    const prevDt = prevData[name]?.dt || 0;
+    let growthCell = '<td style="text-align:right;color:var(--muted);font-size:11px">—</td>';
+    if (prevDt > 0) {
+      const d = (v.dt - prevDt) / prevDt * 100;
+      const up = d >= 0;
+      const color = up ? '#059669' : '#dc2626';
+      const arrow = up ? '▲' : '▼';
+      growthCell = `<td style="text-align:right;font-size:11px;font-weight:700;color:${color}">${arrow} ${up?'+':''}${d.toFixed(1)}%</td>`;
+    }
+    return `
     <tr class="clickable-row${selNccRank === name ? ' selected' : ''}"
         data-ncc="${name.replace(/"/g,'&quot;')}"
         onclick="selectNccRank(this)">
@@ -1489,34 +1642,59 @@ function renderNccRank() {
       <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${name.replace(/"/g,'&quot;')}">${name}</td>
       <td style="text-align:right;font-weight:700">${fmtVND(v.dt)}</td>
       <td style="text-align:right;color:var(--muted)">${(v.dt/totalDt*100).toFixed(1)}%</td>
-    </tr>`).join('');
+      ${growthCell}
+    </tr>`;
+  }).join('');
   renderNccNganh();
   const srch = document.getElementById('nccRankSearch');
   if (srch && srch.value) filterNccRankSearch(srch.value);
 }
 
 function renderNccNganh() {
-  const data = aggByNccNorm();
-  let rows, totalDt;
-  if (selNccRank && data[selNccRank]) {
-    const nganh = data[selNccRank].nganh;
-    rows = Object.entries(nganh).sort((a,b) => b[1]-a[1]);
-    totalDt = data[selNccRank].dt || 1;
-  } else {
-    const ngMap = {};
-    Object.values(data).forEach(v => {
-      Object.entries(v.nganh).forEach(([ng, dt]) => { ngMap[ng] = (ngMap[ng]||0) + dt; });
+  const months  = getMonths();
+  const allM    = D.months;
+  const firstIdx = allM.indexOf(months[0]);
+  const prevMonths = (firstIdx >= months.length)
+    ? allM.slice(firstIdx - months.length, firstIdx) : [];
+
+  const data     = aggByNccNorm(months);
+  const prevData = prevMonths.length ? aggByNccNorm(prevMonths) : {};
+
+  // Helper: build ngành map from aggByNccNorm result
+  function buildNgMap(d, ncc) {
+    if (ncc && d[ncc]) return d[ncc].nganh;
+    const m = {};
+    Object.values(d).forEach(v => {
+      Object.entries(v.nganh).forEach(([ng, dt]) => { m[ng] = (m[ng]||0) + dt; });
     });
-    rows = Object.entries(ngMap).sort((a,b) => b[1]-a[1]);
-    totalDt = rows.reduce((s,[,v]) => s+v, 0) || 1;
+    return m;
   }
-  document.getElementById('nccNganhBody').innerHTML = rows.map(([ng, dt], i) => `
+
+  const ngMap     = buildNgMap(data,     selNccRank);
+  const prevNgMap = buildNgMap(prevData, selNccRank);
+
+  const rows = Object.entries(ngMap).sort((a,b) => b[1]-a[1]);
+  const totalDt = rows.reduce((s,[,v]) => s+v, 0) || 1;
+
+  document.getElementById('nccNganhBody').innerHTML = rows.map(([ng, dt], i) => {
+    const prevDt = prevNgMap[ng] || 0;
+    let growthCell = '<td style="text-align:right;color:var(--muted);font-size:11px">—</td>';
+    if (prevDt > 0) {
+      const d = (dt - prevDt) / prevDt * 100;
+      const up = d >= 0;
+      const color = up ? '#059669' : '#dc2626';
+      const arrow = up ? '▲' : '▼';
+      growthCell = `<td style="text-align:right;font-size:11px;font-weight:700;color:${color}">${arrow} ${up?'+':''}${d.toFixed(1)}%</td>`;
+    }
+    return `
     <tr>
       <td><span class="rank-badge ${i<3?'rank-'+(i+1):'rank-n'}">${i+1}</span></td>
       <td>${ng}</td>
       <td style="text-align:right;font-weight:700">${fmtVND(dt)}</td>
       <td style="text-align:right;color:var(--muted)">${(dt/totalDt*100).toFixed(1)}%</td>
-    </tr>`).join('');
+      ${growthCell}
+    </tr>`;
+  }).join('');
 }
 
 function selectNccRank(rowEl) {
