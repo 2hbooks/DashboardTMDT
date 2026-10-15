@@ -2396,6 +2396,27 @@ function buildTtMonthPanel() {
   });
 }
 
+// Bản riêng cho phần TikTok: tài khoản chỉ xem "Đơn hàng TikTok" không tải phần Tổng quan,
+// nên phải tự có hàm này (thiếu → lỗi màn hình trắng).
+function fmtVnDate(s) { if (!s) return '?'; const p = String(s).split('-'); return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : s; }
+function updateRangeInfo(elId, months, getMeta) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const ms = months.filter((m) => getMeta(m) && getMeta(m).data_from);
+  if (!ms.length) { el.innerHTML = ''; return; }
+  let from = null, to = null, upd = null; const partial = [];
+  ms.forEach((m) => {
+    const x = getMeta(m);
+    if (!from || x.data_from < from) from = x.data_from;
+    if (x.data_to && (!to || x.data_to > to)) to = x.data_to;
+    if (x.updated_at && (!upd || x.updated_at > upd)) upd = x.updated_at;
+    if (x.partial) partial.push(`${m} mới có đến ${fmtVnDate(x.data_to)}`);
+  });
+  el.innerHTML = `📅 Dữ liệu từ <strong>${fmtVnDate(from)}</strong> đến <strong>${fmtVnDate(to)}</strong>`
+    + (partial.length ? ` · Tháng chưa kết thúc: ${partial.join('; ')}` : '')
+    + (upd ? ` · Cập nhật ${fmtVnDate(upd)}` : '');
+}
+
 function updateTtSoboBanner() {
   updateRangeInfo('ttRangeInfo', Object.keys(TOD).filter((m) => ttSelMonths.has(m)), (m) => TOD[m]);
   const prelimMonths = [...ttSelMonths].filter(m => TOD[m] && TOD[m].is_preliminary);
